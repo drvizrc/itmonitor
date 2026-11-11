@@ -469,7 +469,7 @@ function editCentre(c){
 
 /* ---------- more ---------- */
 function v_more(){
-  var items = [['centres', 'Centres, hours and managers'], ['network', 'Network scan, all devices found'], ['qr', 'Support notes and QR labels'], ['events', 'Status history'], ['types', 'Device types']];
+  var items = [['centres', 'Centres, hours and managers'], ['network', 'Network scan, all devices found'], ['qr', 'Asset codes and A4 label printing'], ['events', 'Status history'], ['types', 'Device types']];
   if (isAdmin()) items = items.concat([['users', 'Users'], ['agents', 'Agents'], ['client', 'PC client updates'], ['settings', 'Settings'], ['log', 'Activity and error log']]);
   var h = '<div class="card"><div class="title">' + esc(ME.name || ME.username) + '</div><div class="muted">' + esc(ME.role) + ', centres ' + esc(ME.centres) + '</div><div class="muted">Dashboard version ' + esc(ME.version || '') + '</div></div><div class="card list">' +
     items.map(function(i){ return '<div class="item" onclick="go(\'' + i[0] + '\',null,true)"><div class="grow">' + i[1] + '</div><span class="muted">&#8250;</span></div>'; }).join('') +
@@ -609,14 +609,14 @@ function drawPcs(){
   var l = PCS.filter(function(p){ return (!F.centre || p.Centre === F.centre) && (!q || [p.Hostname, p.Desk, p.AssignedTo, p.IPs, p.OS, p.Serial, p.LoggedUser, p.Model].join(' ').toLowerCase().indexOf(q) >= 0); })
     .sort(function(a, b){ return ((a.Centre || 'ZZZ') + a.Hostname) < ((b.Centre || 'ZZZ') + b.Hostname) ? -1 : 1; });
   var h = '<div class="bar">' + centreFilter('drawPcs()') + '<input id="pcq" placeholder="Search name, desk, IP, user" value="' + esc(PCQ) + '" style="flex:2" oninput="PCQ=this.value;drawPcs();var e=$(\'pcq\');e.focus();e.setSelectionRange(e.value.length,e.value.length)"></div>';
-  h += '<div class="row" style="margin:0 2px 8px"><div class="muted grow">' + l.length + ' PCs. They appear here once the client runs on them.</div><button class="btn sec" onclick="exportExcel()">Export to Excel</button></div><div class="card list">';
+  h += '<div class="row" style="margin:0 2px 8px"><div class="muted grow">' + l.length + ' PCs. They appear here once the client runs on them.</div><button class="btn sec" onclick="go(\'qr\',null,true)">Print labels</button><button class="btn sec" onclick="exportExcel()">Export to Excel</button></div><div class="card list">';
   h += l.map(function(p){
     var pdot = !p.LastSeen ? (p.stale ? 'var(--warn)' : 'var(--blue)') : !p.online ? 'var(--idle)' : (p.NetStatus && p.NetStatus.indexOf('All OK') !== 0) ? 'var(--down)' : 'var(--up)';
     return '<div class="item" onclick="openPc(\'' + esc(p.PCID) + '\')"><span class="dot" style="background:' + pdot + '"></span><div class="grow">' +
       '<div class="title">' + esc(p.Hostname) + (p.Desk ? '  <span class="muted">' + esc(p.Desk) + '</span>' : '') + '</div>' +
       '<div class="muted">' + esc(p.Centre || 'No centre') + '  ' + esc(p.IPs) + '  ' + esc(p.IPMode) + '</div>' +
       (p.LastSeen ? '<div class="muted">' + (p.online ? esc(p.NetStatus || 'Online') : 'Offline since ' + esc(shortTs(p.LastSeen))) + '</div>' : '') +
-      '<div class="muted">' + esc((p.OS || '').replace('Microsoft ', '')) + ' ' + esc(p.DisplayVersion) + '  ' + esc(p.RAMGB) + ' GB' + (p.AssignedTo ? '  ' + esc(p.AssignedTo) : '') + '</div></div></div>';
+      '<div class="muted">' + esc((p.OS || '').replace('Microsoft ', '')) + ' ' + esc(p.DisplayVersion) + '  ' + esc(p.CPUModel || '') + '  ' + esc(p.RAMGB) + ' GB' + (p.DiskType ? ' ' + esc(p.DiskType) : '') + (p.AssignedTo ? '  ' + esc(p.AssignedTo) : '') + '</div></div></div>';
   }).join('') + (l.length ? '' : '<div class="muted">No PCs</div>') + '</div>';
   $('view').innerHTML = h;
 }
@@ -624,17 +624,20 @@ function openPc(id){
   call('pc', { PCID: id }).then(function(r){
     var p = r.pc;
     var kv = [['Status', p.LastSeen ? (p.online ? 'Online, ' + (p.NetStatus || '') : 'Offline, last seen ' + p.LastSeen) : 'No tray client yet'], ['Network detail', p.NetDetail], ['Client version', p.ClientVersion], ['Centre', p.Centre || 'not set'], ['Desk', p.Desk], ['Assigned to', p.AssignedTo], ['Logged in user', p.LoggedUser],
-      ['Make and model', (p.Manufacturer || '') + ' ' + (p.Model || '')], ['Serial', p.Serial], ['CPU', p.CPU + (p.Cores ? ', ' + p.Cores + ' cores' : '')],
-      ['RAM', p.RAMGB ? p.RAMGB + ' GB' : ''], ['Disks', p.Disks], ['Windows', p.OS + ' ' + (p.DisplayVersion || '')], ['Build', p.OSVersion + ' ' + p.OSBuild + ' ' + (p.Architecture || '')],
+      ['Asset code', p.AssetCode], ['Make and model', (p.Manufacturer || '') + ' ' + (p.Model || '') + (p.Chassis ? ', ' + p.Chassis : '')], ['Serial', p.Serial],
+      ['Processor', p.CPUModel ? [p.CPUMake, p.CPUModel.replace(/^(Intel|AMD)\s+/i, '')].filter(Boolean).join(' ') : p.CPU], ['Processor generation', p.CPUGen],
+      ['Processor speed', p.CPUMHz ? (p.CPUMHz / 1000).toFixed(2) + ' GHz (' + p.CPUMHz + ' MHz)' : ''], ['Cores and threads', (p.Cores || '') + (p.CPUThreads ? ' cores, ' + p.CPUThreads + ' threads' : '')],
+      ['RAM', p.RAMGB ? p.RAMGB + ' GB' + (p.RAMType ? ' ' + p.RAMType : '') + (p.RAMSpeed ? ' ' + p.RAMSpeed : '') : ''], ['RAM slots', p.RAMSlots], ['RAM modules', p.RAMModules],
+      ['Storage type', p.DiskType], ['Storage disks', p.DiskDetail || p.Disks], ['Drives and free space', p.Drives], ['Motherboard', p.Board], ['BIOS', p.BIOS], ['Graphics', p.GPU], ['Windows', p.OS + ' ' + (p.DisplayVersion || '')], ['Build', p.OSVersion + ' ' + p.OSBuild + ' ' + (p.Architecture || '')],
       ['Installed on', p.InstallDate], ['Last boot', p.LastBoot], ['IP address', p.IPs], ['IP mode', p.IPMode], ['Gateway', p.Gateway], ['DNS', p.DNS], ['MAC', p.MACs],
       ['Domain or workgroup', p.Domain], ['Antivirus', p.Antivirus], ['Office', p.Office], ['Software count', p.SoftwareCount], ['Last report', p.LastReport + (p.stale ? '  old' : '')],
       ['Monitoring', p.DeviceID ? 'Linked to a Desktop PC device' : 'Not monitored'], ['Notes', p.Notes]];
     var edit = p.Centre ? canEdit(p.Centre) : isAdmin();
     var h = '<div class="row"><div class="grow"><div class="big">' + esc(p.Hostname) + '</div><div class="muted">' + esc(p.PCID) + '</div></div></div><br><div class="kv">' +
-      kv.map(function(x){ return '<div>' + esc(x[0]) + '</div><div>' + esc(x[1] || '') + '</div>'; }).join('') + '</div>' +
+      kv.filter(function(x){ return x[1] && String(x[1]).trim(); }).map(function(x){ return '<div>' + esc(x[0]) + '</div><div>' + esc(x[1]).replace(/; /g, '<br>') + '</div>'; }).join('') + '</div>' +
       '<div class="h2">Software (' + r.software.length + ')</div><input placeholder="Filter software" oninput="filterSoft(this.value)" style="margin-bottom:6px"><div id="softList" style="max-height:260px;overflow:auto;font-size:13px">' +
       r.software.map(function(s){ return '<div class="sw" style="padding:5px 0;border-bottom:1px solid var(--line)">' + esc(s.Name) + ' <span class="muted">' + esc(s.Version) + '  ' + esc(s.Publisher) + '</span></div>'; }).join('') + '</div><br>' +
-      '<div class="row" style="flex-wrap:wrap"><button class="btn sec" onclick="closeModal();assetView(\'' + esc(p.PCID) + '\')">Support and QR</button>' + (edit ? '<button class="btn" id="pcEdit">Edit</button><button class="btn sec" id="pcMon">' + (p.DeviceID ? 'Update monitoring' : 'Monitor this PC') + '</button><button class="btn red" id="pcDel">Delete</button>' : '') +
+      '<div class="row" style="flex-wrap:wrap"><button class="btn sec" onclick="closeModal();assetView(\'' + esc(p.PCID) + '\')">Support and QR</button>' + (edit ? '<button class="btn sec" onclick="editCode(\'' + esc(p.PCID) + '\',\'' + esc(p.AssetCode || '') + '\',function(){ openPc(\'' + esc(p.PCID) + '\'); })">Change code</button><button class="btn" id="pcEdit">Edit</button><button class="btn sec" id="pcMon">' + (p.DeviceID ? 'Update monitoring' : 'Monitor this PC') + '</button><button class="btn red" id="pcDel">Delete</button>' : '') +
       '<div class="grow"></div><button class="btn sec" onclick="closeModal()">Close</button></div>';
     modal(h);
     if (!edit) return;
@@ -736,7 +739,7 @@ function assetView(id){
       '<div id="asPhotos"></div><div class="muted" style="font-size:12px;word-break:break-all;margin-top:8px">QR opens ' + esc(a.qrUrl) + '</div><br>' +
       '<div class="row" style="flex-wrap:wrap">' + (edit ? '<button class="btn" id="asEdit">Edit notes</button><button class="btn sec" onclick="takePhoto(\'' + esc(a.id) + '\', function(){ assetView(\'' + esc(a.id) + '\'); })">Add photo</button>' : '') + '<button class="btn sec" id="asPrint">Print label</button><div class="grow"></div><button class="btn sec" onclick="closeModal()">Close</button></div>');
     call('photos', { id: a.id }).then(function(l){ if ($('asPhotos')) $('asPhotos').innerHTML = photosHtml(l, edit); }).catch(function(){});
-    $('asPrint').onclick = function(){ printLabels([{ id: a.id, name: a.name, centre: a.centre, type: a.type, location: n.Location || a.location }], a.qrUrl.split('#')[0]); };
+    $('asPrint').onclick = function(){ printLabels([{ id: a.id, code: a.code, name: a.name, centre: a.centre, type: a.type, model: a.model, serial: a.serial, ip: a.ip || ((a.host || '').match(/\d+\.\d+\.\d+\.\d+/) || [''])[0], location: n.Location || a.location, support: (n.Support || '').split('\n')[0] }], a.qrUrl.split('#')[0]); };
     if (!edit) return;
     $('asEdit').onclick = function(){
       form('Support notes, ' + a.name, [
@@ -750,25 +753,93 @@ function assetView(id){
     };
   }).catch(fail);
 }
+/* ---------- asset codes and A4 label sheets ---------- */
+var LBL_SIZES = {
+  L24: { n: '24 per A4, 63.5 x 33.9 mm', cols: 3, rows: 8, w: 63.5, h: 33.9, top: 13.1, left: 7.2, cg: 2.5, rg: 0 },
+  L21: { n: '21 per A4, 63.5 x 38.1 mm', cols: 3, rows: 7, w: 63.5, h: 38.1, top: 15.15, left: 7.2, cg: 2.5, rg: 0 },
+  L14: { n: '14 per A4, 99.1 x 38.1 mm', cols: 2, rows: 7, w: 99.1, h: 38.1, top: 15.15, left: 4.65, cg: 2.5, rg: 0 },
+  L8: { n: '8 per A4, 99.1 x 67.7 mm', cols: 2, rows: 4, w: 99.1, h: 67.7, top: 13.1, left: 4.65, cg: 2.5, rg: 0 },
+  L40: { n: '40 per A4, 48.5 x 25.4 mm, small', cols: 4, rows: 10, w: 48.5, h: 25.4, top: 21.5, left: 8, cg: 0, rg: 0 }
+};
+function lblPref(k, v){ try { if (v === undefined) return localStorage.getItem('itm_lbl_' + k); localStorage.setItem('itm_lbl_' + k, v); } catch(e){ return null; } }
+var LBL = { size: lblPref('size') || 'L24', cut: lblPref('cut') !== '0', skip: 0, q: '', type: '', sel: {}, data: null };
 var QRC = '';
 function v_qr(){
-  call('qrList', { centre: QRC }).then(function(r){
+  call('labels', { centre: QRC }).then(function(r){
     if (VIEW !== 'qr') return;
-    var opts = '<option value="">All centres</option>' + (LK ? LK.centres : []).map(function(c){ return '<option value="' + esc(c.code) + '"' + (c.code === QRC ? ' selected' : '') + '>' + esc(c.code) + '</option>'; }).join('');
-    $('view').innerHTML = '<div class="bar"><select onchange="QRC=this.value;v_qr()">' + opts + '</select><button class="btn" id="qrAll">Print ' + r.items.length + ' labels</button></div>' +
-      '<div class="muted" style="margin:0 2px 8px">Stick one label on each device. Scanning it with any phone camera opens its support numbers and maintenance notes, no sign in needed. Tap a row to add notes.</div><div class="card list">' +
-      r.items.map(function(i){ return '<div class="item" onclick="assetView(\'' + esc(i.id) + '\')"><div class="grow"><div class="title">' + esc(i.name) + '</div><div class="muted">' + esc(i.centre || 'No centre') + '  ' + esc(i.type) + (i.location ? '  ' + esc(i.location) : '') + '</div></div><span class="muted">' + (i.hasNote ? 'Notes added' : 'No notes') + '</span></div>'; }).join('') + '</div>';
-    $('qrAll').onclick = function(){ printLabels(r.items, r.url); };
+    LBL.data = r; LBL.sel = {};
+    r.items.forEach(function(i){ LBL.sel[i.id] = true; });
+    drawLabels();
   }).catch(fail);
 }
-function printLabels(items, base){
+function lblFiltered(){
+  var q = LBL.q.toLowerCase();
+  return LBL.data.items.filter(function(i){
+    if (LBL.type && i.type !== LBL.type) return false;
+    return !q || [i.code, i.name, i.type, i.model, i.serial, i.ip, i.location].join(' ').toLowerCase().indexOf(q) >= 0;
+  });
+}
+function drawLabels(){
+  var r = LBL.data, l = lblFiltered();
+  var types = {}; r.items.forEach(function(i){ types[i.type] = 1; });
+  var picked = l.filter(function(i){ return LBL.sel[i.id]; });
+  var sz = LBL_SIZES[LBL.size] || LBL_SIZES.L24, per = sz.cols * sz.rows;
+  var sheets = Math.ceil((picked.length + LBL.skip) / per) || 0;
+  var opts = '<option value="">All centres</option>' + (LK ? LK.centres : []).map(function(c){ return '<option value="' + esc(c.code) + '"' + (c.code === QRC ? ' selected' : '') + '>' + esc(c.code) + '</option>'; }).join('');
+  var h = '<div class="bar"><select onchange="QRC=this.value;v_qr()">' + opts + '</select><select onchange="LBL.type=this.value;drawLabels()"><option value="">All types</option>' +
+    Object.keys(types).sort().map(function(t){ return '<option' + (t === LBL.type ? ' selected' : '') + '>' + esc(t) + '</option>'; }).join('') + '</select></div>' +
+    '<div class="bar"><input id="lblq" placeholder="Search code, name, IP, serial" value="' + esc(LBL.q) + '" oninput="LBL.q=this.value;drawLabels();var e=$(\'lblq\');e.focus();e.setSelectionRange(e.value.length,e.value.length)"></div>' +
+    '<div class="card"><div class="title">Print on A4 sticker paper</div>' +
+    '<div class="row" style="flex-wrap:wrap;margin-top:8px"><select onchange="LBL.size=this.value;lblPref(\'size\',this.value);drawLabels()">' +
+    Object.keys(LBL_SIZES).map(function(k){ return '<option value="' + k + '"' + (k === LBL.size ? ' selected' : '') + '>' + esc(LBL_SIZES[k].n) + '</option>'; }).join('') + '</select>' +
+    '<label class="muted" style="display:flex;align-items:center;gap:4px"><input type="checkbox" style="width:auto" ' + (LBL.cut ? 'checked' : '') + ' onchange="LBL.cut=this.checked;lblPref(\'cut\',this.checked?\'1\':\'0\')"> Cut lines</label>' +
+    '<label class="muted" style="display:flex;align-items:center;gap:4px">Skip first <input type="number" min="0" max="' + (per - 1) + '" value="' + LBL.skip + '" style="width:60px" onchange="LBL.skip=Math.max(0,Math.min(' + (per - 1) + ',parseInt(this.value,10)||0));drawLabels()"> used labels</label></div>' +
+    '<div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn" id="lblPrint"' + (picked.length ? '' : ' disabled') + '>Print ' + picked.length + ' labels, ' + sheets + ' sheet' + (sheets === 1 ? '' : 's') + '</button>' +
+    '<button class="btn sec" onclick="lblAll(true)">Select all</button><button class="btn sec" onclick="lblAll(false)">Select none</button></div>' +
+    '<div class="muted" style="margin-top:8px">Print at 100 percent scale, not fit to page. Each label has the asset code, QR, name, model, serial and IP address. Scanning the QR with any phone opens the service helpline and notes.</div></div>' +
+    '<div class="card list">' + l.map(function(i){
+      return '<div class="item"><input type="checkbox" style="width:auto;margin-right:8px" ' + (LBL.sel[i.id] ? 'checked' : '') + ' onclick="event.stopPropagation();LBL.sel[\'' + esc(i.id) + '\']=this.checked;drawLabels()">' +
+        '<div class="grow" onclick="lblOpen(\'' + esc(i.id) + '\',\'' + esc(i.kind) + '\')"><div class="title">' + esc(i.code) + '  ' + esc(i.name) + '</div><div class="muted">' + esc(i.type) + (i.model ? '  ' + esc(i.model) : '') + (i.ip ? '  IP ' + esc(i.ip) : '') + (i.location ? '  ' + esc(i.location) : '') + '</div></div></div>';
+    }).join('') + (l.length ? '' : '<div class="muted">No assets</div>') + '</div>';
+  $('view').innerHTML = h;
+  if ($('lblPrint')) $('lblPrint').onclick = function(){ printLabels(picked, r.url, LBL.skip); };
+}
+function lblAll(v){ lblFiltered().forEach(function(i){ LBL.sel[i.id] = v; }); drawLabels(); }
+function lblOpen(id, kind){ if (kind === 'PC') openPc(id); else if (kind === 'Asset') itemDetail(id); else assetView(id); }
+function fitPt(text, mm, pt){ var n = String(text || '').length, room = mm / 0.19; return n * pt * 0.52 > room ? Math.max(5, room / (n * 0.52)) : pt; }
+function labelHtml(i, base, sz){
+  var s = sz.h / 33.9, qr = Math.min(sz.h - 4, sz.w * 0.42), tw = sz.w - qr - 6, line = Math.max(5.5, 6.6 * Math.min(s, 1.5));
+  var mt = i.model || i.type; var rows = [i.name, mt && mt !== i.name ? mt : '', i.serial ? 'S/N ' + i.serial : '', i.ip ? 'IP ' + i.ip : '', [i.centre, i.location].filter(Boolean).join(', '), i.support ? 'Help ' + i.support : ''].filter(Boolean);
+  var max = Math.max(2, Math.floor((sz.h - 4 - 10 * Math.min(s, 1.6) * 0.42) / (line * 0.42)));
+  rows = rows.slice(0, max);
+  return '<div class="l" style="width:' + sz.w + 'mm;height:' + sz.h + 'mm">' +
+    '<div class="q" style="width:' + qr + 'mm;height:' + qr + 'mm">' + qrSvg(base + '#a=' + encodeURIComponent(i.id), 2) + '</div>' +
+    '<div class="t" style="width:' + tw + 'mm"><div class="c" style="font-size:' + fitPt(i.code, tw, 10 * Math.min(s, 1.6)) + 'pt">' + esc(i.code || i.id) + '</div>' +
+    rows.map(function(x){ return '<div style="font-size:' + line + 'pt">' + esc(x) + '</div>'; }).join('') + '</div></div>';
+}
+function printLabels(items, base, skip){
+  var sz = LBL_SIZES[LBL.size] || LBL_SIZES.L24, per = sz.cols * sz.rows;
+  var cells = []; for (var k = 0; k < (skip || 0); k++) cells.push(''); items.forEach(function(i){ cells.push(labelHtml(i, base, sz)); });
+  var pages = [];
+  for (var p = 0; p < cells.length; p += per) {
+    var slot = cells.slice(p, p + per);
+    pages.push('<div class="pg"><div class="g" style="padding:' + sz.top + 'mm 0 0 ' + sz.left + 'mm;grid-template-columns:repeat(' + sz.cols + ',' + sz.w + 'mm);grid-auto-rows:' + sz.h + 'mm;column-gap:' + sz.cg + 'mm;row-gap:' + sz.rg + 'mm">' +
+      slot.map(function(c){ return c || '<div class="l e" style="width:' + sz.w + 'mm;height:' + sz.h + 'mm"></div>'; }).join('') + '</div></div>');
+  }
+  var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Asset labels</title><style>@page{size:A4;margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0}' +
+    'body{font-family:Arial,Helvetica,sans-serif;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}.pg{width:210mm;height:297mm;overflow:hidden;page-break-after:always;break-after:page}.pg:last-child{page-break-after:auto;break-after:auto}' +
+    '.g{display:grid}.l{display:flex;align-items:center;gap:1.5mm;padding:1.5mm 2mm;overflow:hidden' + (LBL.cut ? ';outline:0.2mm dashed #888;outline-offset:-0.1mm' : '') + '}.l.e{outline-color:#ddd}' +
+    '.q{flex:none}.q svg{width:100%;height:100%;display:block}.t{line-height:1.18;overflow:hidden}.t div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.c{font-weight:700;letter-spacing:.2px;margin-bottom:.4mm}' +
+    '@media screen{body{background:#888}.pg{background:#fff;margin:10px auto}}</style></head><body>' + pages.join('') +
+    '<script>setTimeout(function(){ window.print(); }, 500);<\/script></body></html>';
   var w = window.open('', '_blank');
-  var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>QR labels</title><style>body{font-family:Segoe UI,Arial,sans-serif;margin:8mm}.g{display:flex;flex-wrap:wrap;gap:4mm}' +
-    '.l{width:62mm;border:1px dashed #999;padding:3mm;display:flex;gap:3mm;align-items:center;page-break-inside:avoid}.l svg{width:24mm;height:24mm;flex:none}.t{font-size:10pt;line-height:1.25}.n{font-weight:700;font-size:11pt}.s{font-size:8pt;color:#444}</style></head><body><div class="g">' +
-    items.map(function(i){ return '<div class="l">' + qrSvg(base + '#a=' + encodeURIComponent(i.id), 2) + '<div class="t"><div class="n">' + esc(i.name) + '</div><div>' + esc(i.centre) + '  ' + esc(i.type) + '</div>' + (i.location ? '<div>' + esc(i.location) + '</div>' : '') + '<div class="s">Scan for IT support</div></div></div>'; }).join('') +
-    '</div><script>setTimeout(function(){ window.print(); }, 400);<\/script></body></html>';
   if (w) { w.document.open(); w.document.write(html); w.document.close(); }
-  else { var b = new Blob([html], { type: 'text/html' }); saveBlob(b, 'qr-labels.html'); toast('Open qr-labels.html and print it'); }
+  else { saveBlob(new Blob([html], { type: 'text/html' }), 'asset-labels.html'); toast('Open asset-labels.html and print it at 100 percent'); }
+}
+function editCode(id, code, done){
+  form('Asset code', [{ k: 'code', label: 'Asset code', ph: 'KOC-PC-001' }], { code: code }, function(o){
+    return call('setAssetCode', { id: id, code: o.code }).then(function(){ toast('Saved'); if (done) done(); });
+  });
 }
 function saveBlob(blob, name){
   var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
@@ -851,25 +922,29 @@ function v_assets(){
 }
 function drawAssets(){
   var r = INV, q = INVQ.toLowerCase();
-  var l = r.items.filter(function(x){
+  var oth = (r.others || []).map(function(a){ return { ID: a.id, kind: a.kind, Centre: a.centre, Category: a.type, Name: a.name, Brand: a.model, Serial: a.serial, Location: a.location, IPAddress: a.ip, AssetCode: a.code, spec: a.spec, dues: [], photos: 0 }; });
+  var all = r.items.concat(oth);
+  var l = all.filter(function(x){
     if (F.centre && x.Centre !== F.centre) return false;
     if (INVCAT && x.Category !== INVCAT) return false;
     if (INVDUE && !x.dues.some(function(d){ return d.days <= r.alertDays; })) return false;
-    return !q || [x.Name, x.Brand, x.Model, x.Serial, x.Location, x.Vendor, x.Category, x.Helpline].join(' ').toLowerCase().indexOf(q) >= 0;
+    return !q || [x.AssetCode, x.Name, x.Brand, x.Model, x.Serial, x.Location, x.Vendor, x.Category, x.Helpline, x.IPAddress, x.spec].join(' ').toLowerCase().indexOf(q) >= 0;
   }).sort(function(a, b){ return (a.Centre + a.Category + a.Name) < (b.Centre + b.Category + b.Name) ? -1 : 1; });
   var dueCount = r.items.filter(function(x){ return (!F.centre || x.Centre === F.centre) && x.dues.some(function(d){ return d.days <= r.alertDays; }); }).length;
-  var cats = '<option value="">All categories</option>' + r.categories.map(function(c){ return '<option' + (c === INVCAT ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('');
+  var extra = []; oth.forEach(function(x){ if (r.categories.indexOf(x.Category) < 0 && extra.indexOf(x.Category) < 0) extra.push(x.Category); });
+  var cats = '<option value="">All categories</option>' + r.categories.concat(extra.sort()).map(function(c){ return '<option' + (c === INVCAT ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('');
   var canAdd = LK.centres.some(function(c){ return canEdit(c.code); });
   var h = '<div class="bar">' + centreFilter('drawAssets()') + '<select onchange="INVCAT=this.value;drawAssets()">' + cats + '</select></div>' +
-    '<div class="bar"><input id="invq" placeholder="Search name, serial, vendor, location" value="' + esc(INVQ) + '" style="flex:2" oninput="INVQ=this.value;drawAssets();var e=$(\'invq\');e.focus();e.setSelectionRange(e.value.length,e.value.length)">' +
+    '<div class="bar"><input id="invq" placeholder="Search code, name, serial, IP, location" value="' + esc(INVQ) + '" style="flex:2" oninput="INVQ=this.value;drawAssets();var e=$(\'invq\');e.focus();e.setSelectionRange(e.value.length,e.value.length)">' +
     (canAdd ? '<button class="btn" onclick="editItem({})">Add asset</button>' : '') + '</div>' +
-    '<div class="row" style="margin:0 2px 8px;flex-wrap:wrap"><div class="muted grow">' + l.length + ' assets' + (dueCount ? ', <a href="#" onclick="INVDUE=!INVDUE;drawAssets();return false">' + dueCount + ' due within ' + r.alertDays + ' days' + (INVDUE ? ', show all' : '') + '</a>' : '') + '</div><button class="btn sec" onclick="exportExcel()">Export to Excel</button></div><div class="card list">';
+    '<div class="row" style="margin:0 2px 8px;flex-wrap:wrap"><div class="muted grow">' + l.length + ' assets' + (dueCount ? ', <a href="#" onclick="INVDUE=!INVDUE;drawAssets();return false">' + dueCount + ' due within ' + r.alertDays + ' days' + (INVDUE ? ', show all' : '') + '</a>' : '') + '</div><button class="btn sec" onclick="go(\'qr\',null,true)">Print labels</button><button class="btn sec" onclick="exportExcel()">Export to Excel</button></div><div class="card list">';
   h += l.map(function(x){
     var worst = x.dues.reduce(function(m, d){ return Math.min(m, d.days); }, 9999);
     var dot = worst < 0 ? 'var(--down)' : worst <= r.alertDays ? 'var(--warn)' : 'var(--up)';
-    return '<div class="item" onclick="itemDetail(\'' + esc(x.ID) + '\')"><span class="dot" style="background:' + dot + '"></span><div class="grow">' +
-      '<div class="title">' + esc(x.Name) + (x.Qty && x.Qty !== '1' ? '  <span class="muted">x' + esc(x.Qty) + '</span>' : '') + '</div>' +
-      '<div class="muted">' + esc(x.Centre) + '  ' + esc(x.Category) + (x.Location ? '  ' + esc(x.Location) : '') + (x.Status && x.Status !== 'In use' ? '  ' + esc(x.Status) : '') + '</div>' +
+    if (x.kind) dot = 'var(--idle)';
+    return '<div class="item" onclick="' + (x.kind ? 'lblOpen(\'' + esc(x.ID) + '\',\'' + esc(x.kind) + '\')' : 'itemDetail(\'' + esc(x.ID) + '\')') + '"><span class="dot" style="background:' + dot + '"></span><div class="grow">' +
+      '<div class="title">' + (x.AssetCode ? '<span class="muted">' + esc(x.AssetCode) + '</span>  ' : '') + esc(x.Name) + (x.Qty && x.Qty !== '1' ? '  <span class="muted">x' + esc(x.Qty) + '</span>' : '') + '</div>' +
+      '<div class="muted">' + esc(x.Centre) + '  ' + esc(x.Category) + (x.spec ? '  ' + esc(x.spec) : '') + (x.IPAddress ? '  IP ' + esc(x.IPAddress) : '') + (x.Location ? '  ' + esc(x.Location) : '') + (x.Status && x.Status !== 'In use' ? '  ' + esc(x.Status) : '') + '</div>' +
       '<div>' + x.dues.filter(function(d){ return d.days <= r.alertDays; }).map(function(d){ return dueBadge(d, r.alertDays); }).join('') + (x.photos ? '<span class="muted" style="font-size:12px">' + x.photos + ' photos</span>' : '') + '</div></div></div>';
   }).join('') + (l.length ? '' : '<div class="muted">No assets yet' + (canAdd ? ', tap Add asset' : '') + '</div>') + '</div>';
   $('view').innerHTML = h;
@@ -878,7 +953,7 @@ function itemDetail(id){
   call('inventoryItem', { ID: id }).then(function(r){
     var x = r.item, lim = INV ? INV.alertDays : 30;
     var due = function(k){ if (!x[k]) return ''; var d = Math.round((Date.UTC(+x[k].slice(0,4), +x[k].slice(5,7)-1, +x[k].slice(8,10)) - Date.UTC(+todayKey().slice(0,4), +todayKey().slice(5,7)-1, +todayKey().slice(8,10))) / 86400000); return dueBadge({ k: k, d: x[k], days: d }, lim); };
-    var kv = [['Centre', x.Centre], ['Category', x.Category], ['Make and model', [x.Brand, x.Model].filter(Boolean).join(' ')], ['Serial', x.Serial], ['Quantity', x.Qty], ['Location', x.Location],
+    var kv = [['Asset code', x.AssetCode], ['Centre', x.Centre], ['Category', x.Category], ['IP address', x.IPAddress], ['Make and model', [x.Brand, x.Model].filter(Boolean).join(' ')], ['Serial', x.Serial], ['Quantity', x.Qty], ['Location', x.Location],
       ['Condition', x.Condition], ['Status', x.Status], ['Purchased', x.PurchaseDate ? niceDate(x.PurchaseDate) : ''], ['Vendor', x.Vendor], ['Invoice', x.InvoiceNo], ['Cost', x.Cost],
       ['AMC with', x.AMCVendor], ['Last service', x.LastService ? niceDate(x.LastService) : ''], ['Notes', x.Notes], ['Updated', x.Updated + ' by ' + x.UpdatedBy]];
     var edit = canEdit(x.Centre);
@@ -887,10 +962,11 @@ function itemDetail(id){
       '<div class="kv">' + kv.filter(function(k){ return k[1]; }).map(function(k){ return '<div>' + esc(k[0]) + '</div><div>' + esc(k[1]).replace(/\n/g, '<br>') + '</div>'; }).join('') + '</div>' +
       photosHtml(r.photos, edit) + '<br><div class="row" style="flex-wrap:wrap">' +
       (edit ? '<button class="btn" id="itEdit">Edit</button><button class="btn sec" onclick="takePhoto(\'' + esc(x.ID) + '\', function(){ itemDetail(\'' + esc(x.ID) + '\'); })">Add photo</button>' : '') +
-      '<button class="btn sec" id="itQr">Print label</button>' + (edit ? '<button class="btn red" id="itDel">Delete</button>' : '') +
+      '<button class="btn sec" id="itQr">Print label</button>' + (edit ? '<button class="btn sec" id="itCode">Change code</button><button class="btn red" id="itDel">Delete</button>' : '') +
       '<div class="grow"></div><button class="btn sec" onclick="closeModal()">Close</button></div>');
-    $('itQr').onclick = function(){ printLabels([{ id: x.ID, name: x.Name, centre: x.Centre, type: x.Category, location: x.Location }], r.qrUrl.split('#')[0]); };
+    $('itQr').onclick = function(){ printLabels([{ id: x.ID, code: x.AssetCode, name: x.Name, centre: x.Centre, type: x.Category, model: [x.Brand, x.Model].filter(Boolean).join(' '), serial: x.Serial, ip: x.IPAddress, location: x.Location, support: (x.Helpline || '').split('\n')[0] }], r.qrUrl.split('#')[0]); };
     if (!edit) return;
+    $('itCode').onclick = function(){ editCode(x.ID, x.AssetCode, function(){ itemDetail(x.ID); }); };
     $('itEdit').onclick = function(){ editItem(x); };
     $('itDel').onclick = function(){ if (!confirm('Delete ' + x.Name + ' from the inventory? Its photos stay in Drive.')) return; call('deleteItem', { ID: x.ID }).then(function(){ closeModal(); toast('Deleted'); v_assets(); }).catch(fail); };
   }).catch(fail);
@@ -904,6 +980,7 @@ function editItem(x){
     { k: 'Name', label: 'Name', ph: 'Split AC, OPD room 2' },
     { k: 'Brand', label: 'Brand', half: true }, { k: 'Model', label: 'Model', half: true },
     { k: 'Serial', label: 'Serial number', half: true }, { k: 'Qty', label: 'Quantity', type: 'number', half: true },
+    { k: 'IPAddress', label: 'IP address, if networked', half: true, ph: '192.168.1.50' },
     { k: 'Location', label: 'Location in centre', half: true, ph: 'Ground floor, reception' }, { k: 'Status', label: 'Status', type: 'select', opts: ['In use', 'Spare', 'Under repair', 'Not working', 'Disposed'], half: true },
     { k: 'Condition', label: 'Condition', type: 'select', opts: ['', 'New', 'Good', 'Fair', 'Poor'], half: true }, { k: 'PurchaseDate', label: 'Purchase date', type: 'date', half: true },
     { k: 'Vendor', label: 'Vendor or supplier', half: true }, { k: 'InvoiceNo', label: 'Invoice number', half: true },
