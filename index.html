@@ -611,7 +611,7 @@ function v_settings(){
     var h = '<div class="card">' + list.map(function(s){
       var bool = s.Value === 'true' || s.Value === 'false';
       return '<div class="f"><label>' + esc(s.Key) + '</label>' + (bool ? '<select data-k="' + esc(s.Key) + '"><option value="true"' + (s.Value === 'true' ? ' selected' : '') + '>Yes</option><option value="false"' + (s.Value === 'false' ? ' selected' : '') + '>No</option></select>' :
-        '<input data-k="' + esc(s.Key) + '" value="' + esc(s.Value) + '"' + (s.Key === 'ShutdownMailTime' ? ' type="time"' : '') + '>') + '<div class="hint">' + esc(s.Description) + '</div></div>';
+        '<input data-k="' + esc(s.Key) + '" value="' + esc(s.Value) + '"' + (['ShutdownMailTime', 'SpeedTestFrom', 'SpeedTestTo'].indexOf(s.Key) >= 0 ? ' type="time"' : '') + '>') + '<div class="hint">' + esc(s.Description) + '</div></div>';
     }).join('') + '<button class="btn" onclick="saveSettings()">Save settings</button></div>' +
       '<div class="card row" style="flex-wrap:wrap"><button class="btn sec" onclick="previewShutdown()">Preview shutdown mails</button><button class="btn sec" onclick="testMail()">Send test mail</button><button class="btn sec" onclick="testPush()">Send test push</button></div>' +
       '<div class="card muted">Phone alerts. Install the ntfy app from Play Store or App Store, tap Add subscription, enter the PushTopic shown above, and keep the server as ntfy.sh. Everyone who subscribes gets the alerts. Keep the topic secret.</div>';
