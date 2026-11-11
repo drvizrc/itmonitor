@@ -478,9 +478,22 @@ function v_more(){
   var h = '<div class="card"><div class="title">' + esc(ME.name || ME.username) + '</div><div class="muted">' + esc(ME.role) + ', centres ' + esc(ME.centres) + '</div><div class="muted">Dashboard version ' + esc(ME.version || '') + '</div></div><div class="card list">' +
     items.map(function(i){ return '<div class="item" onclick="go(\'' + i[0] + '\',null,true)"><div class="grow">' + i[1] + '</div><span class="muted">&#8250;</span></div>'; }).join('') +
     '<div class="item" onclick="exportExcel()"><div class="grow">Export inventory to Excel</div><span class="muted">PCs, software, devices, notes, network</span></div>' +
+    '</div>' + linksCard() + '<div class="card list">' +
     '<div class="item" onclick="changePw(false)"><div class="grow">Change password</div></div>' +
     '<div class="item" onclick="logout()"><div class="grow" style="color:var(--down)">Sign out</div></div></div>';
   $('view').innerHTML = h;
+}
+function linksCard(){
+  var L = ME.links || {}, rows = [];
+  function row(t, sub, url){ rows.push('<a class="item" href="' + esc(url) + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><div class="grow"><div>' + esc(t) + '</div><div class="muted" style="word-break:break-all">' + esc(sub || url) + '</div></div><span class="muted">&#8250;</span></a>'); }
+  if (L.apk) row('Android app for managers', 'Download and install on the phone', L.apk);
+  if (L.phone) row('Mobile link', 'For iPhone or any browser, add it to the home screen', L.phone);
+  if (L.hgrowth) {
+    var cs = String(ME.centres || '').toUpperCase().split(/[ ,]+/).filter(String);
+    if (isAdmin() || cs.indexOf('ALL') >= 0) row('All centre install pages on hgrowth', 'Manager app, PC client and mobile links for every centre, works on the office network', L.hgrowth + '/download');
+    else cs.forEach(function(c){ row('Install page for ' + c, 'Manager app and PC client setup, works on the office network', L.hgrowth + '/download/c/' + encodeURIComponent(c)); });
+  }
+  return rows.length ? '<div class="card list"><div class="title" style="padding:4px 0 6px">Apps and downloads</div>' + rows.join('') + '</div>' : '';
 }
 function v_events(centre){
   if (centre && !F.centre) F.centre = centre;
