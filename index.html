@@ -655,14 +655,29 @@ function drawPcs(){
       '<div class="title">' + esc(p.Hostname) + (p.Desk ? '  <span class="muted">' + esc(p.Desk) + '</span>' : '') + '</div>' +
       '<div class="muted">' + esc(p.Centre || 'No centre') + '  ' + esc(p.IPs) + '  ' + esc(p.IPMode) + '</div>' +
       (p.LastSeen ? '<div class="muted">' + (p.online ? esc(p.NetStatus || 'Online') : 'Offline since ' + esc(shortTs(p.LastSeen))) + '</div>' : '') +
+      (p.online && p.HealthAt ? '<div class="muted">' + esc(healthShort(p)) + '</div>' : '') +
+      (p.HealthIssue ? '<div style="color:var(--down);font-size:12px">' + esc(p.HealthIssue) + '</div>' : '') +
       '<div class="muted">' + esc((p.OS || '').replace('Microsoft ', '')) + ' ' + esc(p.DisplayVersion) + '  ' + esc(p.CPUModel || '') + '  ' + esc(p.RAMGB) + ' GB' + (p.DiskType ? ' ' + esc(p.DiskType) : '') + (p.AssignedTo ? '  ' + esc(p.AssignedTo) : '') + '</div></div></div>';
   }).join('') + (l.length ? '' : '<div class="muted">No PCs</div>') + '</div>';
   $('view').innerHTML = h;
 }
+function fmtHours(h){ h = +h; return h >= 48 ? Math.round(h / 24) + ' days' : Math.round(h) + ' hours'; }
+function healthShort(p){
+  var l = [];
+  if (p.CPUPct !== '' && p.CPUPct !== undefined) l.push('CPU ' + p.CPUPct + ' pct');
+  if (p.RAMPct) l.push('RAM ' + p.RAMPct + ' pct');
+  if (p.DiskLowPct) l.push('lowest drive ' + p.DiskLowPct + ' pct free');
+  if (p.TempC) l.push(p.TempC + ' C');
+  if (p.UptimeH) l.push('up ' + fmtHours(p.UptimeH));
+  return l.join(', ');
+}
 function openPc(id){
   call('pc', { PCID: id }).then(function(r){
     var p = r.pc;
-    var kv = [['Status', p.LastSeen ? (p.online ? 'Online, ' + (p.NetStatus || '') : 'Offline, last seen ' + p.LastSeen) : 'No tray client yet'], ['Network detail', p.NetDetail], ['Client version', p.ClientVersion], ['Centre', p.Centre || 'not set'], ['Desk', p.Desk], ['Assigned to', p.AssignedTo], ['Logged in user', p.LoggedUser],
+    var kv = [['Status', p.LastSeen ? (p.online ? 'Online, ' + (p.NetStatus || '') : 'Offline, last seen ' + p.LastSeen) : 'No tray client yet'], ['Network detail', p.NetDetail], ['Health problem', p.HealthIssue], ['Health checked', p.HealthAt],
+      ['Processor use', p.CPUPct !== '' && p.CPUPct !== undefined ? p.CPUPct + ' pct' : ''], ['RAM use', p.RAMPct ? p.RAMPct + ' pct' : ''], ['Drives free now', p.DiskFree],
+      ['Running since restart', p.UptimeH ? fmtHours(p.UptimeH) : ''], ['Clock', p.ClockOff !== '' && p.ClockOff !== undefined ? (Math.abs(+p.ClockOff) < 1 ? 'Correct' : Math.abs(+p.ClockOff) + ' minutes ' + (+p.ClockOff > 0 ? 'ahead' : 'behind')) : ''],
+      ['Time zone', p.TimeZone], ['Temperature', p.TempC ? p.TempC + ' C' : (p.HealthAt ? 'Not reported by this PC' : '')], ['Top programs', p.TopProcs], ['Client version', p.ClientVersion], ['Centre', p.Centre || 'not set'], ['Desk', p.Desk], ['Assigned to', p.AssignedTo], ['Logged in user', p.LoggedUser],
       ['Asset code', p.AssetCode], ['Make and model', (p.Manufacturer || '') + ' ' + (p.Model || '') + (p.Chassis ? ', ' + p.Chassis : '')], ['Serial', p.Serial],
       ['Processor', p.CPUModel ? [p.CPUMake, p.CPUModel.replace(/^(Intel|AMD)\s+/i, '')].filter(Boolean).join(' ') : p.CPU], ['Processor generation', p.CPUGen],
       ['Processor speed', p.CPUMHz ? (p.CPUMHz / 1000).toFixed(2) + ' GHz (' + p.CPUMHz + ' MHz)' : ''], ['Cores and threads', (p.Cores || '') + (p.CPUThreads ? ' cores, ' + p.CPUThreads + ' threads' : '')],
