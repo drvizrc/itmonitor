@@ -88,10 +88,10 @@
 <main id="view"><div class="spin">Loading</div></main>
 <nav id="nav" style="display:none">
   <button data-v="status" onclick="go('status')"><b>&#9673;</b>Status</button>
+  <button data-v="assets" onclick="go('assets')"><b>&#9635;</b>Assets</button>
   <button data-v="devices" onclick="go('devices')"><b>&#9638;</b>Devices</button>
   <button data-v="pcs" onclick="go('pcs')"><b>&#9707;</b>PCs</button>
   <button data-v="holidays" onclick="go('holidays')"><b>&#9783;</b>Holidays</button>
-  <button data-v="centres" onclick="go('centres')"><b>&#8962;</b>Centres</button>
   <button data-v="more" onclick="go('more')"><b>&#8943;</b>More</button>
 </nav>
 <div id="modal"></div>
@@ -469,7 +469,7 @@ function editCentre(c){
 
 /* ---------- more ---------- */
 function v_more(){
-  var items = [['network', 'Network scan, all devices found'], ['qr', 'Support notes and QR labels'], ['events', 'Status history'], ['types', 'Device types']];
+  var items = [['centres', 'Centres, hours and managers'], ['network', 'Network scan, all devices found'], ['qr', 'Support notes and QR labels'], ['events', 'Status history'], ['types', 'Device types']];
   if (isAdmin()) items = items.concat([['users', 'Users'], ['agents', 'Agents'], ['client', 'PC client updates'], ['settings', 'Settings'], ['log', 'Activity and error log']]);
   var h = '<div class="card"><div class="title">' + esc(ME.name || ME.username) + '</div><div class="muted">' + esc(ME.role) + ', centres ' + esc(ME.centres) + '</div><div class="muted">Dashboard version ' + esc(ME.version || '') + '</div></div><div class="card list">' +
     items.map(function(i){ return '<div class="item" onclick="go(\'' + i[0] + '\',null,true)"><div class="grow">' + i[1] + '</div><span class="muted">&#8250;</span></div>'; }).join('') +
@@ -729,21 +729,23 @@ function assetView(id){
   call('asset', { id: id }).then(function(a){
     var n = a.note || {};
     var kv = [['Centre', a.centre + (a.centreName ? ', ' + a.centreName : '')], ['Type', a.type], ['Make and model', a.model], ['Serial', a.serial], ['Location', n.Location || a.location],
-      ['Support contacts', n.Support], ['Vendor', n.Vendor], ['AMC', n.AMC], ['Warranty', n.Warranty || a.warranty], ['Maintenance notes', n.Notes], ['Updated', n.Updated ? n.Updated + ' by ' + n.UpdatedBy : 'not yet']];
+      ['Support contacts', n.Support], ['Vendor', n.Vendor], ['AMC', n.AMC + (n.AMCEnd ? ', ends ' + niceDate(n.AMCEnd) : '')], ['Warranty', (n.Warranty || a.warranty || '') + (n.WarrantyEnd ? ', ends ' + niceDate(n.WarrantyEnd) : '')], ['Maintenance notes', n.Notes], ['Updated', n.Updated ? n.Updated + ' by ' + n.UpdatedBy : 'not yet']];
     var edit = a.centre ? canEdit(a.centre) : isAdmin();
     modal('<div class="row"><div class="grow"><div class="big">' + esc(a.name) + '</div><div class="muted">' + esc(a.kind) + '  ' + esc(a.id) + '</div></div><div>' + qrSvg(a.qrUrl, 3) + '</div></div><br><div class="kv">' +
       kv.map(function(x){ return '<div>' + esc(x[0]) + '</div><div>' + (x[0] === 'Support contacts' ? telLinks(x[1] || '') : esc(x[1] || '')) + '</div>'; }).join('') + '</div><br>' +
-      '<div class="muted" style="font-size:12px;word-break:break-all">QR opens ' + esc(a.qrUrl) + '</div><br>' +
-      '<div class="row" style="flex-wrap:wrap">' + (edit ? '<button class="btn" id="asEdit">Edit notes</button>' : '') + '<button class="btn sec" id="asPrint">Print label</button><div class="grow"></div><button class="btn sec" onclick="closeModal()">Close</button></div>');
+      '<div id="asPhotos"></div><div class="muted" style="font-size:12px;word-break:break-all;margin-top:8px">QR opens ' + esc(a.qrUrl) + '</div><br>' +
+      '<div class="row" style="flex-wrap:wrap">' + (edit ? '<button class="btn" id="asEdit">Edit notes</button><button class="btn sec" onclick="takePhoto(\'' + esc(a.id) + '\', function(){ assetView(\'' + esc(a.id) + '\'); })">Add photo</button>' : '') + '<button class="btn sec" id="asPrint">Print label</button><div class="grow"></div><button class="btn sec" onclick="closeModal()">Close</button></div>');
+    call('photos', { id: a.id }).then(function(l){ if ($('asPhotos')) $('asPhotos').innerHTML = photosHtml(l, edit); }).catch(function(){});
     $('asPrint').onclick = function(){ printLabels([{ id: a.id, name: a.name, centre: a.centre, type: a.type, location: n.Location || a.location }], a.qrUrl.split('#')[0]); };
     if (!edit) return;
     $('asEdit').onclick = function(){
       form('Support notes, ' + a.name, [
-        { k: 'Support', label: 'Support phone numbers and contacts', type: 'textarea', ph: 'Vendor helpdesk 1800 123 4567\nLocal engineer Ramesh 98470 12345' },
+        { k: 'Support', label: 'Service helpline and support contacts', type: 'textarea', ph: 'Vendor helpdesk 1800 123 4567\nLocal engineer Ramesh 98470 12345' },
         { k: 'Vendor', label: 'Vendor or supplier', half: true }, { k: 'AMC', label: 'AMC or contract', half: true, ph: 'AMC with X till Mar 2027' },
-        { k: 'Warranty', label: 'Warranty', half: true }, { k: 'Location', label: 'Location', half: true, ph: 'Server rack, 1st floor' },
+        { k: 'Warranty', label: 'Warranty details', half: true }, { k: 'Location', label: 'Location', half: true, ph: 'Server rack, 1st floor' },
+        { k: 'WarrantyEnd', label: 'Warranty ends on', type: 'date', half: true }, { k: 'AMCEnd', label: 'AMC ends on', type: 'date', half: true },
         { k: 'Notes', label: 'Maintenance notes', type: 'textarea', ph: 'Restart steps, passwords kept with, last service date' }
-      ], { Support: n.Support, Vendor: n.Vendor, AMC: n.AMC, Warranty: n.Warranty || a.warranty, Location: n.Location || a.location, Notes: n.Notes },
+      ], { Support: n.Support, Vendor: n.Vendor, AMC: n.AMC, Warranty: n.Warranty || a.warranty, Location: n.Location || a.location, Notes: n.Notes, WarrantyEnd: n.WarrantyEnd, AMCEnd: n.AMCEnd },
       function(o){ o.id = a.id; return call('saveAsset', o).then(function(){ toast('Saved'); assetView(a.id); }); });
     };
   }).catch(fail);
@@ -824,14 +826,134 @@ function publicView(id){
   $('nav').style.display = 'none'; $('refBtn').style.display = 'none'; $('backBtn').style.display = 'none';
   $('view').innerHTML = '<div class="spin">Loading</div>';
   google.script.run.withSuccessHandler(function(a){
-    var kv = [['Centre', a.centre + (a.centreName ? ', ' + a.centreName : '')], ['Type', a.type], ['Make and model', a.model], ['Serial', a.serial], ['Location', a.location], ['Vendor', a.vendor], ['AMC', a.amc], ['Warranty', a.warranty], ['Maintenance notes', a.notes], ['Updated', a.updated]];
+    var kv = [['Centre', a.centre + (a.centreName ? ', ' + a.centreName : '')], ['Type', a.type], ['Make and model', a.model], ['Serial', a.serial], ['Location', a.location], ['Status', a.status], ['Vendor', a.vendor],
+      ['AMC', (a.amc || '') + (a.amcEnd ? ' till ' + niceDate(a.amcEnd) : '')], ['Warranty', a.warrantyEnd ? 'till ' + niceDate(a.warrantyEnd) : a.warranty], ['Last service', a.lastService ? niceDate(a.lastService) : ''], ['Next service', a.nextService ? niceDate(a.nextService) : ''], ['Notes', a.notes], ['Updated', a.updated]];
     $('view').innerHTML = '<div class="card"><div class="big">' + esc(a.name) + '</div><div class="muted">' + esc(a.kind) + '  ' + esc(a.id) + '</div></div>' +
-      '<div class="card"><div class="title">Support contacts</div><div style="font-size:17px;line-height:1.7;margin-top:6px">' + (a.support ? telLinks(a.support) : '<span class="muted">None added yet</span>') + '</div></div>' +
+      '<div class="card"><div class="title">Service helpline</div><div style="font-size:17px;line-height:1.7;margin-top:6px">' + (a.support ? telLinks(a.support) : '<span class="muted">None added yet</span>') + '</div></div>' +
       '<div class="card"><div class="kv">' + kv.filter(function(x){ return x[1]; }).map(function(x){ return '<div>' + esc(x[0]) + '</div><div>' + esc(x[1]).replace(/\n/g, '<br>') + '</div>'; }).join('') + '</div></div>' +
       '<button class="btn sec" style="width:100%" onclick="location.hash=\'\';location.reload()">Sign in to the full dashboard</button>';
   }).withFailureHandler(function(e){
     $('view').innerHTML = '<div class="card"><p>' + esc(e.message) + '</p></div><button class="btn sec" style="width:100%" onclick="location.hash=\'\';location.reload()">Sign in</button>';
   }).publicAsset(id);
+}
+
+/* ---------- asset inventory ---------- */
+var INV = null, INVQ = '', INVCAT = '', INVDUE = false;
+var DUE_LABEL = { WarrantyEnd: 'Warranty', AMCEnd: 'AMC', NextService: 'Service' };
+function dueBadge(x, lim){
+  if (x.days === null || x.days === undefined) return '';
+  var cls = x.days < 0 ? 'Down' : x.days <= lim ? 'Stale' : 'Up';
+  var t = x.days < 0 ? 'ended ' + niceDate(x.d) : x.days === 0 ? 'ends today' : 'till ' + niceDate(x.d);
+  return '<span class="pill ' + cls + '" style="margin:2px 4px 0 0">' + DUE_LABEL[x.k] + ' ' + esc(t) + '</span>';
+}
+function v_assets(){
+  call('inventory').then(function(r){ INV = r; if (VIEW === 'assets') drawAssets(); }).catch(fail);
+}
+function drawAssets(){
+  var r = INV, q = INVQ.toLowerCase();
+  var l = r.items.filter(function(x){
+    if (F.centre && x.Centre !== F.centre) return false;
+    if (INVCAT && x.Category !== INVCAT) return false;
+    if (INVDUE && !x.dues.some(function(d){ return d.days <= r.alertDays; })) return false;
+    return !q || [x.Name, x.Brand, x.Model, x.Serial, x.Location, x.Vendor, x.Category, x.Helpline].join(' ').toLowerCase().indexOf(q) >= 0;
+  }).sort(function(a, b){ return (a.Centre + a.Category + a.Name) < (b.Centre + b.Category + b.Name) ? -1 : 1; });
+  var dueCount = r.items.filter(function(x){ return (!F.centre || x.Centre === F.centre) && x.dues.some(function(d){ return d.days <= r.alertDays; }); }).length;
+  var cats = '<option value="">All categories</option>' + r.categories.map(function(c){ return '<option' + (c === INVCAT ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('');
+  var canAdd = LK.centres.some(function(c){ return canEdit(c.code); });
+  var h = '<div class="bar">' + centreFilter('drawAssets()') + '<select onchange="INVCAT=this.value;drawAssets()">' + cats + '</select></div>' +
+    '<div class="bar"><input id="invq" placeholder="Search name, serial, vendor, location" value="' + esc(INVQ) + '" style="flex:2" oninput="INVQ=this.value;drawAssets();var e=$(\'invq\');e.focus();e.setSelectionRange(e.value.length,e.value.length)">' +
+    (canAdd ? '<button class="btn" onclick="editItem({})">Add asset</button>' : '') + '</div>' +
+    '<div class="row" style="margin:0 2px 8px;flex-wrap:wrap"><div class="muted grow">' + l.length + ' assets' + (dueCount ? ', <a href="#" onclick="INVDUE=!INVDUE;drawAssets();return false">' + dueCount + ' due within ' + r.alertDays + ' days' + (INVDUE ? ', show all' : '') + '</a>' : '') + '</div><button class="btn sec" onclick="exportExcel()">Export to Excel</button></div><div class="card list">';
+  h += l.map(function(x){
+    var worst = x.dues.reduce(function(m, d){ return Math.min(m, d.days); }, 9999);
+    var dot = worst < 0 ? 'var(--down)' : worst <= r.alertDays ? 'var(--warn)' : 'var(--up)';
+    return '<div class="item" onclick="itemDetail(\'' + esc(x.ID) + '\')"><span class="dot" style="background:' + dot + '"></span><div class="grow">' +
+      '<div class="title">' + esc(x.Name) + (x.Qty && x.Qty !== '1' ? '  <span class="muted">x' + esc(x.Qty) + '</span>' : '') + '</div>' +
+      '<div class="muted">' + esc(x.Centre) + '  ' + esc(x.Category) + (x.Location ? '  ' + esc(x.Location) : '') + (x.Status && x.Status !== 'In use' ? '  ' + esc(x.Status) : '') + '</div>' +
+      '<div>' + x.dues.filter(function(d){ return d.days <= r.alertDays; }).map(function(d){ return dueBadge(d, r.alertDays); }).join('') + (x.photos ? '<span class="muted" style="font-size:12px">' + x.photos + ' photos</span>' : '') + '</div></div></div>';
+  }).join('') + (l.length ? '' : '<div class="muted">No assets yet' + (canAdd ? ', tap Add asset' : '') + '</div>') + '</div>';
+  $('view').innerHTML = h;
+}
+function itemDetail(id){
+  call('inventoryItem', { ID: id }).then(function(r){
+    var x = r.item, lim = INV ? INV.alertDays : 30;
+    var due = function(k){ if (!x[k]) return ''; var d = Math.round((Date.UTC(+x[k].slice(0,4), +x[k].slice(5,7)-1, +x[k].slice(8,10)) - Date.UTC(+todayKey().slice(0,4), +todayKey().slice(5,7)-1, +todayKey().slice(8,10))) / 86400000); return dueBadge({ k: k, d: x[k], days: d }, lim); };
+    var kv = [['Centre', x.Centre], ['Category', x.Category], ['Make and model', [x.Brand, x.Model].filter(Boolean).join(' ')], ['Serial', x.Serial], ['Quantity', x.Qty], ['Location', x.Location],
+      ['Condition', x.Condition], ['Status', x.Status], ['Purchased', x.PurchaseDate ? niceDate(x.PurchaseDate) : ''], ['Vendor', x.Vendor], ['Invoice', x.InvoiceNo], ['Cost', x.Cost],
+      ['AMC with', x.AMCVendor], ['Last service', x.LastService ? niceDate(x.LastService) : ''], ['Notes', x.Notes], ['Updated', x.Updated + ' by ' + x.UpdatedBy]];
+    var edit = canEdit(x.Centre);
+    modal('<div class="row"><div class="grow"><div class="big">' + esc(x.Name) + '</div><div class="muted">' + esc(x.ID) + '</div><div>' + due('WarrantyEnd') + due('AMCEnd') + due('NextService') + '</div></div><div>' + qrSvg(r.qrUrl, 3) + '</div></div>' +
+      (x.Helpline ? '<div class="card" style="margin:10px 0"><div class="muted">Service helpline</div><div style="font-size:16px;line-height:1.6">' + telLinks(x.Helpline) + '</div></div>' : '<br>') +
+      '<div class="kv">' + kv.filter(function(k){ return k[1]; }).map(function(k){ return '<div>' + esc(k[0]) + '</div><div>' + esc(k[1]).replace(/\n/g, '<br>') + '</div>'; }).join('') + '</div>' +
+      photosHtml(r.photos, edit) + '<br><div class="row" style="flex-wrap:wrap">' +
+      (edit ? '<button class="btn" id="itEdit">Edit</button><button class="btn sec" onclick="takePhoto(\'' + esc(x.ID) + '\', function(){ itemDetail(\'' + esc(x.ID) + '\'); })">Add photo</button>' : '') +
+      '<button class="btn sec" id="itQr">Print label</button>' + (edit ? '<button class="btn red" id="itDel">Delete</button>' : '') +
+      '<div class="grow"></div><button class="btn sec" onclick="closeModal()">Close</button></div>');
+    $('itQr').onclick = function(){ printLabels([{ id: x.ID, name: x.Name, centre: x.Centre, type: x.Category, location: x.Location }], r.qrUrl.split('#')[0]); };
+    if (!edit) return;
+    $('itEdit').onclick = function(){ editItem(x); };
+    $('itDel').onclick = function(){ if (!confirm('Delete ' + x.Name + ' from the inventory? Its photos stay in Drive.')) return; call('deleteItem', { ID: x.ID }).then(function(){ closeModal(); toast('Deleted'); v_assets(); }).catch(fail); };
+  }).catch(fail);
+}
+function editItem(x){
+  var cats = (INV && INV.categories) || [];
+  var centres = LK.centres.filter(function(c){ return canEdit(c.code); }).map(function(c){ return { v: c.code, l: c.code + '  ' + c.name }; });
+  if (!x.Centre && F.centre) x.Centre = F.centre;
+  form(x.ID ? 'Edit ' + x.Name : 'New asset', [
+    { k: 'Centre', label: 'Centre', type: 'select', opts: centres, half: true }, { k: 'Category', label: 'Category', type: 'select', opts: cats, half: true },
+    { k: 'Name', label: 'Name', ph: 'Split AC, OPD room 2' },
+    { k: 'Brand', label: 'Brand', half: true }, { k: 'Model', label: 'Model', half: true },
+    { k: 'Serial', label: 'Serial number', half: true }, { k: 'Qty', label: 'Quantity', type: 'number', half: true },
+    { k: 'Location', label: 'Location in centre', half: true, ph: 'Ground floor, reception' }, { k: 'Status', label: 'Status', type: 'select', opts: ['In use', 'Spare', 'Under repair', 'Not working', 'Disposed'], half: true },
+    { k: 'Condition', label: 'Condition', type: 'select', opts: ['', 'New', 'Good', 'Fair', 'Poor'], half: true }, { k: 'PurchaseDate', label: 'Purchase date', type: 'date', half: true },
+    { k: 'Vendor', label: 'Vendor or supplier', half: true }, { k: 'InvoiceNo', label: 'Invoice number', half: true },
+    { k: 'Cost', label: 'Cost', half: true }, { k: 'WarrantyEnd', label: 'Warranty ends on', type: 'date', half: true },
+    { k: 'AMCVendor', label: 'AMC with', half: true }, { k: 'AMCEnd', label: 'AMC ends on', type: 'date', half: true },
+    { k: 'LastService', label: 'Last service', type: 'date', half: true }, { k: 'NextService', label: 'Next service due', type: 'date', half: true },
+    { k: 'Helpline', label: 'Service helpline and contacts', type: 'textarea', ph: 'Company helpline 1800 123 4567\nTechnician Ravi 98470 12345' },
+    { k: 'Notes', label: 'Notes', type: 'textarea' }
+  ], Object.assign({ Status: 'In use', Qty: '1', Category: cats[0] }, x), function(o){
+    o.ID = x.ID || '';
+    return call('saveItem', o).then(function(res){ toast('Saved'); INV = null; if (VIEW === 'assets') v_assets(); setTimeout(function(){ itemDetail(res.ID); }, 300); });
+  });
+}
+function photosHtml(list, edit){
+  if (!list || !list.length) return '<div class="muted" style="margin-top:10px">No photos yet</div>';
+  return '<div class="h2">Photos (' + list.length + ')</div><div style="display:flex;flex-wrap:wrap;gap:6px">' + list.map(function(p){
+    return '<a href="' + esc(p.Url) + '" target="_blank" title="' + esc(p.Time + ' by ' + p.By + (p.Note ? ', ' + p.Note : '')) + '"><img src="https://drive.google.com/thumbnail?id=' + encodeURIComponent(p.FileId) + '&sz=w200" style="width:92px;height:92px;object-fit:cover;border-radius:8px;background:var(--line)" loading="lazy"></a>';
+  }).join('') + '</div>';
+}
+function takePhoto(id, done){
+  var inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*'; inp.multiple = true; inp.setAttribute('capture', 'environment');
+  inp.onchange = function(){
+    var files = Array.prototype.slice.call(inp.files || []);
+    if (!files.length) return;
+    var n = 0, queued = false;
+    toast('Uploading ' + files.length + ' photo' + (files.length > 1 ? 's' : ''));
+    files.reduce(function(p, f){
+      return p.then(function(){ return shrink(f); }).then(function(b64){ return call('uploadPhoto', { id: id, b64: b64, name: f.name }); })
+        .then(function(r){ n++; if (r && r.queued) queued = true; });
+    }, Promise.resolve()).then(function(){
+      toast(n + ' photo' + (n > 1 ? 's' : '') + (queued ? ' saved, they reach Google Drive within a minute' : ' uploaded to Google Drive'));
+      if (done) done();
+    }).catch(fail);
+  };
+  inp.click();
+}
+function shrink(file){
+  return new Promise(function(res, rej){
+    var url = URL.createObjectURL(file), img = new Image();
+    img.onload = function(){
+      var max = 1600, w = img.naturalWidth, h = img.naturalHeight, s = Math.min(1, max / Math.max(w, h));
+      var c = document.createElement('canvas'); c.width = Math.round(w * s); c.height = Math.round(h * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      res(c.toDataURL('image/jpeg', 0.82).split(',')[1]);
+    };
+    img.onerror = function(){ rej(new Error('Could not read the photo')); };
+    img.src = url;
+  });
 }
 
 /* ---------- password ---------- */
