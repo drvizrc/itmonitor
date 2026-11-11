@@ -225,7 +225,7 @@ function v_centre(code){
     if (!c) { $('view').innerHTML = '<div class="card">Centre not found</div>'; return; }
     var ds = d.devices.filter(function(x){ return x.centre === code; });
     var h = '<div class="card"><div class="row"><div class="grow"><div class="big">' + esc(c.code) + '</div><div class="muted">' + esc(c.name) + ' ' + esc(c.city || '') + '</div></div>' +
-      (canEdit(code) ? '<button class="btn sm" onclick="editDevice({Centre:\'' + esc(code) + '\'})">Add device</button>' : '') + '</div>' +
+      (canEdit(code) ? '<button class="btn sm" onclick="editDevice({Centre:\'' + esc(code) + '\'})">Add device</button>' : '') + '<button class="btn sm sec" onclick="newTicket({Centre:\'' + esc(code) + '\'})">Raise ticket</button></div>' +
       '<div class="muted" style="margin-top:6px">' + (c.closedReason ? 'Closed today, ' + esc(c.closedReason) : 'Open ' + esc(c.hours)) + '</div>' +
       (c.nextClosed ? '<div class="muted">Next closed ' + esc(c.nextClosed) + '</div>' : '') +
       (c.pcs ? '<div class="muted">' + c.pcsOnline + ' of ' + c.pcs + ' PCs reporting over the centre internet</div>' : '') +
@@ -495,7 +495,7 @@ function editCentre(c){
 
 /* ---------- more ---------- */
 function v_more(){
-  var items = [['centres', 'Centres, hours and managers'], ['network', 'Network scan, all devices found'], ['qr', 'Asset codes and A4 label printing'], ['events', 'Status history'], ['types', 'Device types']];
+  var items = [['tickets', 'Tickets and repairs'], ['centres', 'Centres, hours and managers'], ['network', 'Network scan, all devices found'], ['qr', 'Asset codes and A4 label printing'], ['events', 'Status history'], ['types', 'Device types']];
   if (isAdmin()) items = items.concat([['users', 'Users'], ['agents', 'Agents'], ['client', 'PC client updates'], ['settings', 'Settings'], ['log', 'Activity and error log']]);
   var h = '<div class="card"><div class="title">' + esc(ME.name || ME.username) + '</div><div class="muted">' + esc(ME.role) + ', centres ' + esc(ME.centres) + '</div><div class="muted">Dashboard version ' + esc(ME.version || '') + '</div></div><div class="card list">' +
     items.map(function(i){ return '<div class="item" onclick="go(\'' + i[0] + '\',null,true)"><div class="grow">' + i[1] + '</div><span class="muted">&#8250;</span></div>'; }).join('') +
@@ -613,7 +613,7 @@ function v_settings(){
       return '<div class="f"><label>' + esc(s.Key) + '</label>' + (bool ? '<select data-k="' + esc(s.Key) + '"><option value="true"' + (s.Value === 'true' ? ' selected' : '') + '>Yes</option><option value="false"' + (s.Value === 'false' ? ' selected' : '') + '>No</option></select>' :
         '<input data-k="' + esc(s.Key) + '" value="' + esc(s.Value) + '"' + (['ShutdownMailTime', 'SpeedTestFrom', 'SpeedTestTo'].indexOf(s.Key) >= 0 ? ' type="time"' : '') + '>') + '<div class="hint">' + esc(s.Description) + '</div></div>';
     }).join('') + '<button class="btn" onclick="saveSettings()">Save settings</button></div>' +
-      '<div class="card row" style="flex-wrap:wrap"><button class="btn sec" onclick="previewShutdown()">Preview shutdown mails</button><button class="btn sec" onclick="testMail()">Send test mail</button><button class="btn sec" onclick="testPush()">Send test push</button></div>' +
+      '<div class="card row" style="flex-wrap:wrap"><button class="btn sec" onclick="previewShutdown()">Preview shutdown mails</button><button class="btn sec" onclick="testMail()">Send test mail</button><button class="btn sec" onclick="testPush()">Send test push</button><button class="btn sec" onclick="monthlyPreview()">Preview monthly report</button><button class="btn sec" onclick="monthlySendNow()">Send monthly report now</button></div>' +
       '<div class="card muted">Phone alerts. Install the ntfy app from Play Store or App Store, tap Add subscription, enter the PushTopic shown above, and keep the server as ntfy.sh. Everyone who subscribes gets the alerts. Keep the topic secret.</div>';
     $('view').innerHTML = h;
   }).catch(fail);
@@ -656,10 +656,88 @@ function drawPcs(){
       '<div class="muted">' + esc(p.Centre || 'No centre') + '  ' + esc(p.IPs) + '  ' + esc(p.IPMode) + '</div>' +
       (p.LastSeen ? '<div class="muted">' + (p.online ? esc(p.NetStatus || 'Online') : 'Offline since ' + esc(shortTs(p.LastSeen))) + '</div>' : '') +
       (p.online && p.HealthAt ? '<div class="muted">' + esc(healthShort(p)) + '</div>' : '') +
-      (p.HealthIssue ? '<div style="color:var(--down);font-size:12px">' + esc(p.HealthIssue) + '</div>' : '') +
+      (p.HealthIssue || p.SecurityIssue ? '<div style="color:var(--down);font-size:12px">' + esc([p.HealthIssue, p.SecurityIssue].filter(Boolean).join('; ')) + '</div>' : '') +
       '<div class="muted">' + esc((p.OS || '').replace('Microsoft ', '')) + ' ' + esc(p.DisplayVersion) + '  ' + esc(p.CPUModel || '') + '  ' + esc(p.RAMGB) + ' GB' + (p.DiskType ? ' ' + esc(p.DiskType) : '') + (p.AssignedTo ? '  ' + esc(p.AssignedTo) : '') + '</div></div></div>';
   }).join('') + (l.length ? '' : '<div class="muted">No PCs</div>') + '</div>';
   $('view').innerHTML = h;
+}
+/* ---------- tickets, asset history, monthly report ---------- */
+var TK = { status: 'Open' };
+function histTicketBtns(id, name, centre, code){
+  var nm = String(name || '').replace(/['"\\]/g, '');
+  return '<button class="btn sec" onclick="showHistory(\'' + esc(id) + '\',\'' + esc(nm) + '\')">History</button>' +
+    '<button class="btn sec" onclick="newTicket({Centre:\'' + esc(centre || '') + '\',AssetID:\'' + esc(id) + '\',AssetName:\'' + esc(nm) + '\',AssetCode:\'' + esc(code || '') + '\'})">Raise ticket</button>';
+}
+function showHistory(id, name){
+  call('assetHistory', { id: id }).then(function(list){
+    modal('<div class="h2" style="margin-top:0">History, ' + esc(name || id) + '</div>' + (list.length ? '<div class="list">' + list.map(function(h){
+      return '<div class="item" style="cursor:default"><div class="grow"><div>' + esc(h.What) + '</div><div class="muted">' + esc(h.Time) + (h.By ? '  ' + esc(h.By) : '') + '</div></div></div>';
+    }).join('') + '</div>' : '<p class="muted">Nothing recorded yet. Moves, edits, repairs, user and hardware changes appear here from now on.</p>') +
+      '<div class="row" style="margin-top:12px"><div class="grow"></div><button class="btn sec" onclick="closeModal()">Close</button></div>');
+  }).catch(fail);
+}
+function tkColor(s){ return s === 'Fixed' || s === 'Closed' ? 'var(--up)' : s === 'Open' ? 'var(--down)' : 'var(--warn)'; }
+function v_tickets(){
+  call('tickets', { centre: F.centre, status: TK.status }).then(function(list){
+    if (VIEW !== 'tickets') return;
+    var h = '<div class="bar">' + centreFilter('render()') + '<select onchange="TK.status=this.value;render()">' + ['Open', 'In progress', 'Waiting for vendor', 'Fixed', 'Closed', 'All'].map(function(x){ return '<option' + (TK.status === x ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select>' +
+      '<button class="btn" onclick="newTicket({Centre:F.centre})">New ticket</button></div><div class="card list">' +
+      (list.length ? list.map(function(t){
+        return '<div class="item" onclick="ticketDetail(\'' + esc(t.ID) + '\')"><span class="dot" style="background:' + tkColor(t.Status) + '"></span><div class="grow">' +
+          '<div class="title">' + (t.Priority === 'Urgent' ? '<span style="color:var(--down)">Urgent  </span>' : '') + esc(t.Title) + '</div>' +
+          '<div class="muted">' + esc(t.Centre) + (t.AssetName ? '  ' + esc(t.AssetName) + (t.AssetCode ? ' ' + esc(t.AssetCode) : '') : '') + '  ' + esc(t.Status) + '</div>' +
+          '<div class="muted">' + esc(shortTs(t.Time)) + ' by ' + esc(t.RaisedBy) + (t.photos ? '  ' + t.photos + ' photo' + (t.photos > 1 ? 's' : '') : '') + '</div></div></div>';
+      }).join('') : '<div class="muted">No tickets</div>') + '</div>';
+    $('view').innerHTML = h;
+  }).catch(fail);
+}
+function newTicket(pre){
+  pre = pre || {};
+  var centres = LK.centres.map(function(c){ return { v: c.code, l: c.code + '  ' + c.name }; });
+  if (!pre.Centre && centres.length === 1) pre.Centre = centres[0].v;
+  var f = [];
+  if (pre.AssetID) f.push({ html: '<div class="muted" style="margin-bottom:8px">For ' + esc(pre.AssetName || pre.AssetID) + (pre.AssetCode ? ' ' + esc(pre.AssetCode) : '') + '</div>' });
+  f = f.concat([{ k: 'Centre', label: 'Centre', type: 'select', opts: centres, half: true }, { k: 'Priority', label: 'Priority', type: 'select', opts: ['Normal', 'Urgent'], half: true },
+    { k: 'Title', label: 'Problem', ph: 'Printer not printing, AC not cooling' }, { k: 'Detail', label: 'Details', type: 'textarea' }]);
+  form('Raise a ticket', f, { Centre: pre.Centre || '', Priority: 'Normal' }, function(o){
+    o.AssetID = pre.AssetID || '';
+    return call('saveTicket', o).then(function(r){ toast('Ticket raised. Add a photo if it helps'); if (VIEW === 'tickets') render(); setTimeout(function(){ ticketDetail(r.ID); }, 300); });
+  });
+}
+function ticketDetail(id){
+  call('tickets', { status: 'All' }).then(function(list){
+    var t = list.filter(function(x){ return x.ID === id; })[0];
+    if (!t) { toast('Ticket not found'); return; }
+    var edit = canEdit(t.Centre) || t.RaisedBy === ME.username;
+    var kv = [['Status', t.Status], ['Priority', t.Priority], ['Centre', t.Centre], ['Asset', t.AssetName ? t.AssetName + (t.AssetCode ? ' ' + t.AssetCode : '') : ''], ['Raised', t.Time + ' by ' + t.RaisedBy],
+      ['Assigned to', t.AssignedTo], ['Details', t.Detail], ['Fixed', t.FixedAt ? t.FixedAt + ' by ' + t.FixedBy : ''], ['Fix done', t.FixNote], ['Updated', t.Updated + ' by ' + t.UpdatedBy]];
+    var nm = String(t.AssetName || '').replace(/['"\\]/g, '');
+    modal('<div class="big">' + esc(t.Title) + '</div><div class="muted">' + esc(t.ID) + '</div><br><div class="kv">' +
+      kv.filter(function(k){ return k[1]; }).map(function(k){ return '<div>' + esc(k[0]) + '</div><div>' + esc(k[1]).replace(/\n/g, '<br>') + '</div>'; }).join('') + '</div><div id="tkPhotos"></div><br>' +
+      '<div class="row" style="flex-wrap:wrap">' + (edit ? '<button class="btn" id="tkUpd">Update</button><button class="btn sec" onclick="takePhoto(\'' + esc(t.ID) + '\', function(){ ticketDetail(\'' + esc(t.ID) + '\'); })">Add photo</button>' : '') +
+      (t.AssetID ? '<button class="btn sec" onclick="showHistory(\'' + esc(t.AssetID) + '\',\'' + esc(nm) + '\')">Asset history</button>' : '') +
+      '<div class="grow"></div><button class="btn sec" onclick="closeModal()">Close</button></div>');
+    call('photos', { id: t.ID }).then(function(l){ if ($('tkPhotos')) $('tkPhotos').innerHTML = photosHtml(l, edit); }).catch(function(){});
+    if (!edit) return;
+    $('tkUpd').onclick = function(){
+      form('Update ticket', [{ k: 'Status', label: 'Status', type: 'select', opts: ['Open', 'In progress', 'Waiting for vendor', 'Fixed', 'Closed'], half: true }, { k: 'AssignedTo', label: 'Assigned to', half: true },
+        { k: 'FixNote', label: 'What was done', type: 'textarea', ph: 'Replaced toner, vendor visit, part ordered' }], t, function(o){
+        o.ID = t.ID;
+        return call('saveTicket', o).then(function(){ toast('Updated'); if (VIEW === 'tickets') render(); setTimeout(function(){ ticketDetail(t.ID); }, 300); });
+      });
+    };
+  }).catch(fail);
+}
+function monthlyPreview(){
+  call('monthlyPreview', {}).then(function(r){
+    modal('<div class="h2" style="margin-top:0">Monthly report, ' + esc(r.title) + '</div>' + r.centres.map(function(c){
+      return '<div class="card"><div class="title">' + esc(c.code) + '  ' + esc(c.name || '') + '</div><pre style="white-space:pre-wrap;font-family:inherit;margin:6px 0 0">' + esc(c.lines.join('\n')) + '</pre></div>';
+    }).join('') + '<div class="row"><div class="grow"></div><button class="btn sec" onclick="closeModal()">Close</button></div>');
+  }).catch(fail);
+}
+function monthlySendNow(){
+  if (!confirm('Mail last month report to every centre manager and the alert recipients now?')) return;
+  call('monthlySend', {}).then(function(r){ toast('Report for ' + r.month + ' sent for ' + r.centres + ' centres'); }).catch(fail);
 }
 function fmtHours(h){ h = +h; return h >= 48 ? Math.round(h / 24) + ' days' : Math.round(h) + ' hours'; }
 function healthShort(p){
@@ -674,7 +752,7 @@ function healthShort(p){
 function openPc(id){
   call('pc', { PCID: id }).then(function(r){
     var p = r.pc;
-    var kv = [['Status', p.LastSeen ? (p.online ? 'Online, ' + (p.NetStatus || '') : 'Offline, last seen ' + p.LastSeen) : 'No tray client yet'], ['Network detail', p.NetDetail], ['Health problem', p.HealthIssue], ['Health checked', p.HealthAt],
+    var kv = [['Status', p.LastSeen ? (p.online ? 'Online, ' + (p.NetStatus || '') : 'Offline, last seen ' + p.LastSeen) : 'No tray client yet'], ['Network detail', p.NetDetail], ['Health problem', p.HealthIssue], ['Security problem', p.SecurityIssue], ['Antivirus state', p.AVStatus], ['Last Windows update', p.LastUpdate], ['Network card MACs', p.HwMACs], ['Health checked', p.HealthAt],
       ['Processor use', p.CPUPct !== '' && p.CPUPct !== undefined ? p.CPUPct + ' pct' : ''], ['RAM use', p.RAMPct ? p.RAMPct + ' pct' : ''], ['Drives free now', p.DiskFree],
       ['Running since restart', p.UptimeH ? fmtHours(p.UptimeH) : ''], ['Clock', p.ClockOff !== '' && p.ClockOff !== undefined ? (Math.abs(+p.ClockOff) < 1 ? 'Correct' : Math.abs(+p.ClockOff) + ' minutes ' + (+p.ClockOff > 0 ? 'ahead' : 'behind')) : ''],
       ['Time zone', p.TimeZone], ['Temperature', p.TempC ? p.TempC + ' C' : (p.HealthAt ? 'Not reported by this PC' : '')], ['Top programs', p.TopProcs], ['Client version', p.ClientVersion], ['Centre', p.Centre || 'not set'], ['Desk', p.Desk], ['Assigned to', p.AssignedTo], ['Logged in user', p.LoggedUser],
@@ -691,7 +769,7 @@ function openPc(id){
       kv.filter(function(x){ return x[1] && String(x[1]).trim(); }).map(function(x){ return '<div>' + esc(x[0]) + '</div><div>' + esc(x[1]).replace(/; /g, '<br>') + '</div>'; }).join('') + '</div>' +
       '<div class="h2">Software (' + r.software.length + ')</div><input placeholder="Filter software" oninput="filterSoft(this.value)" style="margin-bottom:6px"><div id="softList" style="max-height:260px;overflow:auto;font-size:13px">' +
       r.software.map(function(s){ return '<div class="sw" style="padding:5px 0;border-bottom:1px solid var(--line)">' + esc(s.Name) + ' <span class="muted">' + esc(s.Version) + '  ' + esc(s.Publisher) + '</span></div>'; }).join('') + '</div><br>' +
-      '<div class="row" style="flex-wrap:wrap"><button class="btn sec" onclick="closeModal();assetView(\'' + esc(p.PCID) + '\')">Support and QR</button>' + (edit ? '<button class="btn sec" onclick="editCode(\'' + esc(p.PCID) + '\',\'' + esc(p.AssetCode || '') + '\',function(){ openPc(\'' + esc(p.PCID) + '\'); })">Change code</button><button class="btn" id="pcEdit">Edit</button><button class="btn sec" id="pcMon">' + (p.DeviceID ? 'Update monitoring' : 'Monitor this PC') + '</button><button class="btn red" id="pcDel">Delete</button>' : '') +
+      '<div class="row" style="flex-wrap:wrap"><button class="btn sec" onclick="closeModal();assetView(\'' + esc(p.PCID) + '\')">Support and QR</button>' + histTicketBtns(p.PCID, p.Hostname, p.Centre, p.AssetCode) + (edit ? '<button class="btn sec" onclick="editCode(\'' + esc(p.PCID) + '\',\'' + esc(p.AssetCode || '') + '\',function(){ openPc(\'' + esc(p.PCID) + '\'); })">Change code</button><button class="btn" id="pcEdit">Edit</button><button class="btn sec" id="pcMon">' + (p.DeviceID ? 'Update monitoring' : 'Monitor this PC') + '</button><button class="btn red" id="pcDel">Delete</button>' : '') +
       '<div class="grow"></div><button class="btn sec" onclick="closeModal()">Close</button></div>';
     modal(h);
     if (!edit) return;
@@ -791,7 +869,7 @@ function assetView(id){
     modal('<div class="row"><div class="grow"><div class="big">' + esc(a.name) + '</div><div class="muted">' + esc(a.kind) + '  ' + esc(a.id) + '</div></div><div>' + qrSvg(a.qrUrl, 3) + '</div></div><br><div class="kv">' +
       kv.map(function(x){ return '<div>' + esc(x[0]) + '</div><div>' + (x[0] === 'Support contacts' ? telLinks(x[1] || '') : esc(x[1] || '')) + '</div>'; }).join('') + '</div><br>' +
       '<div id="asPhotos"></div><div class="muted" style="font-size:12px;word-break:break-all;margin-top:8px">QR opens ' + esc(a.qrUrl) + '</div><br>' +
-      '<div class="row" style="flex-wrap:wrap">' + (edit ? '<button class="btn" id="asEdit">Edit notes</button><button class="btn sec" onclick="takePhoto(\'' + esc(a.id) + '\', function(){ assetView(\'' + esc(a.id) + '\'); })">Add photo</button>' : '') + '<button class="btn sec" id="asPrint">Print label</button><div class="grow"></div><button class="btn sec" onclick="closeModal()">Close</button></div>');
+      '<div class="row" style="flex-wrap:wrap">' + (edit ? '<button class="btn" id="asEdit">Edit notes</button><button class="btn sec" onclick="takePhoto(\'' + esc(a.id) + '\', function(){ assetView(\'' + esc(a.id) + '\'); })">Add photo</button>' : '') + histTicketBtns(a.id, a.name, a.centre, a.code) + '<button class="btn sec" id="asPrint">Print label</button><div class="grow"></div><button class="btn sec" onclick="closeModal()">Close</button></div>');
     call('photos', { id: a.id }).then(function(l){ if ($('asPhotos')) $('asPhotos').innerHTML = photosHtml(l, edit); }).catch(function(){});
     $('asPrint').onclick = function(){ printLabels([{ id: a.id, code: a.code, name: a.name, centre: a.centre, type: a.type, model: a.model, serial: a.serial, ip: a.ip || ((a.host || '').match(/\d+\.\d+\.\d+\.\d+/) || [''])[0], location: n.Location || a.location, support: (n.Support || '').split('\n')[0] }], a.qrUrl.split('#')[0]); };
     if (!edit) return;
@@ -1093,7 +1171,7 @@ function itemDetail(id){
       '<div class="kv">' + kv.filter(function(k){ return k[1]; }).map(function(k){ return '<div>' + esc(k[0]) + '</div><div>' + esc(k[1]).replace(/\n/g, '<br>') + '</div>'; }).join('') + '</div>' +
       photosHtml(r.photos, edit) + '<br><div class="row" style="flex-wrap:wrap">' +
       (edit ? '<button class="btn" id="itEdit">Edit</button><button class="btn sec" onclick="takePhoto(\'' + esc(x.ID) + '\', function(){ itemDetail(\'' + esc(x.ID) + '\'); })">Add photo</button>' : '') +
-      '<button class="btn sec" id="itQr">Print label</button>' + (edit ? '<button class="btn sec" id="itCode">Change code</button><button class="btn red" id="itDel">Delete</button>' : '') +
+      histTicketBtns(x.ID, x.Name, x.Centre, x.AssetCode) + '<button class="btn sec" id="itQr">Print label</button>' + (edit ? '<button class="btn sec" id="itCode">Change code</button><button class="btn red" id="itDel">Delete</button>' : '') +
       '<div class="grow"></div><button class="btn sec" onclick="closeModal()">Close</button></div>');
     $('itQr').onclick = function(){ printLabels([{ id: x.ID, code: x.AssetCode, name: x.Name, centre: x.Centre, type: x.Category, model: [x.Brand, x.Model].filter(Boolean).join(' '), serial: x.Serial, ip: x.IPAddress, location: x.Location, support: (x.Helpline || '').split('\n')[0] }], r.qrUrl.split('#')[0]); };
     if (!edit) return;
