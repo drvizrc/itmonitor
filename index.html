@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script>window.ITM_API="https://script.google.com/macros/s/AKfycbycdpJcrXWWiPXHUc_vzu3CmDKW83fRLeffGG0QjDnc2Db0J0t8hUSZ1uhYt_poDQwM/exec";</script>
+<link rel="manifest" href="manifest.json">
+<script>
+(function(){
+  function mk(ok, bad){ return new Proxy({}, { get: function(_, name){
+    if (name === 'withSuccessHandler') return function(h){ return mk(h, bad); };
+    if (name === 'withFailureHandler') return function(h){ return mk(ok, h); };
+    return function(){
+      var args = Array.prototype.slice.call(arguments);
+      fetch(window.ITM_API || location.pathname, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ api: 'ui', fn: name, args: args }) })
+        .then(function(r){ return r.json(); })
+        .then(function(j){ if (j.ok) { ok && ok(j.result); } else { bad && bad(new Error(j.error)); } })
+        .catch(function(e){ bad && bad(new Error('Cannot reach the server, ' + e.message)); });
+    };
+  }}); }
+  window.google = { script: { run: mk() } };
+})();
+</script>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#123a6b">
+<title>RheumaCARE IT Monitor</title>
+<style>
+  :root{--navy:#123a6b;--bg:#f2f4f8;--card:#fff;--line:#e2e6ee;--text:#1d2433;--muted:#6b7385;
+        --up:#1f9d55;--down:#d64545;--warn:#e0a106;--idle:#9aa3b2;--blue:#2f6fde}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);font-size:15px}
+  header{position:sticky;top:0;z-index:5;background:var(--navy);color:#fff;padding:12px 14px;display:flex;align-items:center;gap:10px}
+  header h1{font-size:17px;margin:0;flex:1;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  header button{background:rgba(255,255,255,.15);border:0;color:#fff;border-radius:8px;padding:7px 10px;font-size:14px}
+  main{padding:12px 12px 90px;max-width:900px;margin:0 auto}
+  nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);display:flex;z-index:5}
+  nav button{flex:1;border:0;background:none;padding:10px 2px 12px;font-size:12px;color:var(--muted)}
+  nav button b{display:block;font-size:19px;line-height:22px;font-weight:400}
+  nav button.on{color:var(--navy);font-weight:600}
+  .card{background:var(--card);border-radius:12px;padding:12px 14px;margin-bottom:10px;border:1px solid var(--line)}
+  .row{display:flex;align-items:center;gap:10px}
+  .grow{flex:1;min-width:0}
+  .muted{color:var(--muted);font-size:13px}
+  .title{font-weight:600}
+  .pill{display:inline-block;border-radius:20px;padding:2px 9px;font-size:12px;font-weight:600;color:#fff;white-space:nowrap}
+  .Up{background:var(--up)}.Down{background:var(--down)}.Stale,.Unknown{background:var(--warn)}.Idle,.Disabled,.Closed{background:var(--idle)}
+  .dot{width:12px;height:12px;border-radius:50%;flex:0 0 12px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+  .ccard{border-left:5px solid var(--idle);cursor:pointer;margin:0}
+  .ccard.ok{border-left-color:var(--up)}.ccard.bad{border-left-color:var(--down)}.ccard.warn{border-left-color:var(--warn)}
+  .big{font-size:22px;font-weight:700}
+  .stats{display:flex;gap:8px;margin-bottom:12px}
+  .stats div{flex:1;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
+  .stats small{display:block;color:var(--muted);font-size:12px}
+  .list .item{display:flex;gap:10px;align-items:center;padding:11px 2px;border-bottom:1px solid var(--line);cursor:pointer}
+  .list .item:last-child{border-bottom:0}
+  .bar{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+  select,input,textarea{font-size:15px;padding:9px 10px;border:1px solid #cfd5df;border-radius:8px;background:#fff;width:100%;font-family:inherit}
+  .bar select{width:auto;flex:1}
+  .btn{border:0;border-radius:8px;padding:10px 14px;font-size:15px;background:var(--navy);color:#fff;cursor:pointer}
+  .btn.sec{background:#e7ebf2;color:var(--text)}.btn.red{background:var(--down)}.btn.sm{padding:7px 10px;font-size:13px}
+  .h2{font-size:16px;font-weight:700;margin:16px 2px 8px}
+  .modal{position:fixed;inset:0;background:rgba(10,20,40,.45);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+  .sheet{background:#fff;width:100%;max-width:640px;max-height:92vh;overflow:auto;border-radius:16px 16px 0 0;padding:16px}
+  @media(min-width:700px){.modal{align-items:center}.sheet{border-radius:16px}}
+  .f{margin-bottom:11px}.f label{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
+  .f .hint{font-size:12px;color:var(--muted);margin-top:3px}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chips label{border:1px solid #cfd5df;border-radius:20px;padding:6px 11px;font-size:13px;color:var(--text);display:flex;gap:6px;align-items:center;margin:0}
+  .chips input{width:auto;margin:0}
+  .hours{display:grid;grid-template-columns:48px 1fr 1fr;gap:6px;align-items:center}
+  .toast{position:fixed;left:50%;bottom:86px;transform:translateX(-50%);background:#1d2433;color:#fff;padding:10px 16px;border-radius:10px;z-index:30;font-size:14px;max-width:90%}
+  .login{max-width:360px;margin:60px auto}
+  .kv{display:grid;grid-template-columns:120px 1fr;gap:4px 10px;font-size:14px}
+  .kv div:nth-child(odd){color:var(--muted)}
+  .hchip{display:inline-flex;align-items:center;gap:4px;background:#eef1f6;border-radius:14px;padding:3px 9px;font-size:12px;margin:3px 4px 0 0}
+  .hchip button{border:0;background:none;color:var(--down);font-size:14px;padding:0 0 0 2px;cursor:pointer}
+  .spin{text-align:center;color:var(--muted);padding:30px}
+</style>
+</head>
+<body>
+<header>
+  <button id="backBtn" style="display:none" onclick="goBack()">&#8249;</button>
+  <h1 id="ttl">RheumaCARE IT Monitor</h1>
+  <button id="refBtn" style="display:none" onclick="render()">&#8635;</button>
+</header>
+<main id="view"><div class="spin">Loading</div></main>
+<nav id="nav" style="display:none">
+  <button data-v="status" onclick="go('status')"><b>&#9673;</b>Status</button>
+  <button data-v="devices" onclick="go('devices')"><b>&#9638;</b>Devices</button>
+  <button data-v="pcs" onclick="go('pcs')"><b>&#9707;</b>PCs</button>
+  <button data-v="holidays" onclick="go('holidays')"><b>&#9783;</b>Holidays</button>
+  <button data-v="centres" onclick="go('centres')"><b>&#8962;</b>Centres</button>
+  <button data-v="more" onclick="go('more')"><b>&#8943;</b>More</button>
+</nav>
+<div id="modal"></div>
+
+<script>
+var TOKEN = null, ME = null, LK = null, VIEW = 'status', ARG = null, STACK = [], TIMER = null, DASH = null;
+var DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+var F = { centre: '' };
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function store(k, v){ try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch(e){} }
+function load(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
+function toast(m){ var t = document.createElement('div'); t.className = 'toast'; t.textContent = m; document.body.appendChild(t); setTimeout(function(){ t.remove(); }, 3200); }
+function isAdmin(){ return ME && ME.role === 'admin'; }
+function canEdit(c){ if (!ME) return false; if (ME.role === 'admin') return true; if (ME.role !== 'manager') return false; var l = ME.centres.toUpperCase().split(/[ ,]+/); return l.indexOf('ALL') >= 0 || l.indexOf(String(c).toUpperCase()) >= 0; }
+function niceDate(k){ if (!k) return ''; var p = k.split('-'); var d = new Date(Date.UTC(+p[0], +p[1]-1, +p[2])); return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getUTCDay()] + ' ' + p[2] + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+p[1]-1] + ' ' + p[0]; }
+function todayKey(){ var d = new Date(Date.now() + 330*60000); return d.toISOString().slice(0,10); }
+function shortTs(s){ return s ? s.slice(5,16).replace('-', '/') : ''; }
+function agoText(s){ var m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):?(\d{2})?/); if (!m) return ''; var t = Date.UTC(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0)) - 330*60000; var sec = Math.max(0, Math.round((Date.now() - t) / 1000)); return sec < 90 ? sec + ' s ago' : sec < 5400 ? Math.round(sec/60) + ' min ago' : Math.round(sec/3600) + ' h ago'; }
+
+function call(action, payload){
+  return new Promise(function(res, rej){
+    google.script.run.withSuccessHandler(res).withFailureHandler(function(e){
+      var m = (e && e.message) || String(e);
+      if (m.indexOf('AUTH') >= 0) { logout(true); rej(new Error('Session expired, please log in')); return; }
+      if (m.indexOf('change your password') >= 0) { changePw(true); }
+      rej(new Error(m));
+    }).api(TOKEN, action, payload || {});
+  });
+}
+function fail(e){ toast(e.message || String(e)); }
+
+/* ---------- login ---------- */
+function showLogin(msg){
+  $('nav').style.display = 'none'; $('refBtn').style.display = 'none'; $('backBtn').style.display = 'none';
+  $('view').innerHTML = '<div class="login card"><div class="h2" style="margin-top:0">Sign in</div>' +
+    (msg ? '<p class="muted">' + esc(msg) + '</p>' : '') +
+    '<div class="f"><label>Username</label><input id="lu" autocapitalize="off" autocomplete="username"></div>' +
+    '<div class="f"><label>Password</label><input id="lp" type="password" autocomplete="current-password"></div>' +
+    '<button class="btn" style="width:100%" id="lb" onclick="doLogin()">Sign in</button></div>';
+  $('lp').addEventListener('keydown', function(e){ if (e.key === 'Enter') doLogin(); });
+}
+function doLogin(){
+  $('lb').disabled = true; $('lb').textContent = 'Signing in';
+  google.script.run.withSuccessHandler(function(r){
+    TOKEN = r.token; ME = r.user; store('itm_token', TOKEN); start();
+  }).withFailureHandler(function(e){ showLogin(e.message); }).login($('lu').value, $('lp').value);
+}
+function logout(silent){ TOKEN = null; ME = null; store('itm_token', null); clearInterval(TIMER); showLogin(silent ? 'Please sign in again' : ''); }
+
+function start(){
+  $('nav').style.display = 'flex'; $('refBtn').style.display = '';
+  if (ME.appName) $('ttl').innerHTML = esc(ME.appName) + (ME.version ? ' <span style="font-size:11px;font-weight:400;opacity:.7">v' + esc(ME.version) + '</span>' : '');
+  if (ME.mustChange) { changePw(true); return; }
+  call('lookups').then(function(l){ LK = l; go('status'); }).catch(fail);
+  clearInterval(TIMER);
+  TIMER = setInterval(function(){ if ((VIEW === 'status' || VIEW === 'centre') && !$('modal').innerHTML && !document.hidden) render(true); }, 15000);
+}
+
+/* ---------- navigation ---------- */
+function go(v, arg, push){
+  if (push) STACK.push([VIEW, ARG]); else STACK = [];
+  VIEW = v; ARG = arg;
+  document.querySelectorAll('nav button').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-v') === v || (v === 'centre' && b.getAttribute('data-v') === 'status')); });
+  $('backBtn').style.display = STACK.length ? '' : 'none';
+  render();
+}
+function goBack(){ var p = STACK.pop(); if (!p) return; VIEW = p[0]; ARG = p[1]; $('backBtn').style.display = STACK.length ? '' : 'none'; render(); }
+function render(quiet){
+  var fn = window['v_' + VIEW];
+  if (!quiet) $('view').innerHTML = '<div class="spin">Loading</div>';
+  if (fn) fn(ARG);
+}
+function reloadLookups(){ return call('lookups').then(function(l){ LK = l; }); }
+
+/* ---------- status ---------- */
+function stateOf(c){ if (c.down) return 'bad'; if (c.stale || c.unknown) return 'warn'; if (c.up) return 'ok'; return ''; }
+function v_status(){
+  call('dashboard').then(function(d){
+    DASH = d; if (VIEW !== 'status') return;
+    var up = 0, down = 0, warn = 0;
+    d.centres.forEach(function(c){ up += c.up; down += c.down; warn += c.stale + c.unknown; });
+    var h = '<div class="stats"><div><span class="big" style="color:var(--up)">' + up + '</span><small>Up</small></div>' +
+      '<div><span class="big" style="color:var(--down)">' + down + '</span><small>Down</small></div>' +
+      '<div><span class="big" style="color:var(--warn)">' + warn + '</span><small>No data</small></div></div>';
+    h += '<div class="card" style="font-size:13px"><div class="kv">' +
+      d.agents.map(function(a){ return '<div>Agent ' + esc(a.id) + (a.version ? ' v' + esc(a.version) : '') + '</div><div>' + (a.minutes > 10 ? '<span class="pill Down">Offline</span> ' : '<span class="pill Up">Live</span> ') + 'last report ' + esc(shortTs(a.lastSeen) || 'never') + (a.minutes <= 10 && a.lastSeen ? ', ' + agoText(a.lastSeen) : '') + '</div>'; }).join('') +
+      '<div>Last device check</div><div>' + esc(shortTs(d.lastCheck) || 'none yet') + (d.lastCheck ? ', ' + agoText(d.lastCheck) : '') + '</div>' +
+      '<div>Last network scan</div><div>' + esc(shortTs(d.lastScan) || 'none yet') + (d.lastScan ? ', ' + agoText(d.lastScan) : '') + '</div>' +
+      (d.sync ? '<div>Data source</div><div>' + (d.sync.hgrowth ? 'hgrowth server' + (d.sync.lastSync ? ', copied to Google ' + agoText(d.sync.lastSync) : '') + (d.sync.error ? ' <span class="pill Down">Copy failed</span>' : '') : d.sync.master ? 'Copy from hgrowth, ' + agoText(d.sync.lastSync) : (d.sync.lastSync ? '<span class="pill Down">hgrowth offline</span> Google in charge' : 'Google')) + '</div>' : '') +
+      '<div>Screen refreshed</div><div>' + esc(d.generated.slice(11)) + ', every 15 seconds</div></div></div>';
+    var downs = d.devices.filter(function(x){ return x.state === 'Down'; });
+    if (downs.length) {
+      h += '<div class="h2">Down now</div><div class="card list">' + downs.map(devItem).join('') + '</div>';
+    }
+    h += '<div class="h2">Centres <span class="muted">' + esc(d.today) + '</span></div><div class="grid">';
+    d.centres.forEach(function(c){
+      var st = c.closedReason ? '<span class="pill Closed">' + esc(c.closedReason) + '</span>' :
+        c.down ? '<span class="pill Down">' + c.down + ' down</span>' :
+        (c.stale + c.unknown) ? '<span class="pill Stale">' + (c.stale + c.unknown) + ' no data</span>' :
+        c.up ? '<span class="pill Up">All up</span>' : '<span class="pill Idle">Not checking</span>';
+      h += '<div class="card ccard ' + stateOf(c) + '" onclick="go(\'centre\',\'' + esc(c.code) + '\',true)">' +
+        '<div class="row"><div class="grow title">' + esc(c.code) + '</div>' + st + '</div>' +
+        '<div class="muted">' + esc(c.name !== c.code ? c.name : (c.city || '')) + '</div>' +
+        '<div class="muted">' + (c.hours ? 'Open ' + esc(c.hours) : 'Closed today') + '</div>' +
+        '<div class="muted">' + c.up + ' up of ' + c.total + '</div></div>';
+    });
+    h += '</div><p class="muted" style="text-align:center">Updated ' + esc(d.generated.slice(11)) + '</p>';
+    $('view').innerHTML = h;
+  }).catch(fail);
+}
+function color(s){ return {Up:'var(--up)',Down:'var(--down)',Stale:'var(--warn)',Unknown:'var(--warn)'}[s] || 'var(--idle)'; }
+function devItem(x){
+  var sub = x.state === 'Up' ? (x.ms !== '' ? x.ms + ' ms, ' : '') + 'checked ' + shortTs(x.lastCheck) :
+    x.state === 'Down' ? 'Down since ' + shortTs(x.lastChange) + (x.lastOnline ? ', last ok ' + shortTs(x.lastOnline) : '') :
+    x.state === 'Idle' ? x.window : x.state === 'Stale' ? 'No result since ' + shortTs(x.lastCheck) : x.state;
+  return '<div class="item" onclick="devDetail(\'' + x.id + '\')"><span class="dot" style="background:' + color(x.state) + '"></span>' +
+    '<div class="grow"><div class="title">' + esc(x.centre) + '  ' + esc(x.name) + '</div><div class="muted">' + esc(x.host) + '  ' + esc(sub) + '</div></div>' +
+    (x.uptime != null ? '<span class="muted">' + x.uptime + '%</span>' : '') + '</div>';
+}
+function v_centre(code){
+  var p = DASH ? Promise.resolve(DASH) : call('dashboard');
+  if (DASH && arguments.length) p = call('dashboard');
+  p.then(function(d){
+    DASH = d; if (VIEW !== 'centre') return;
+    var c = d.centres.filter(function(x){ return x.code === code; })[0];
+    if (!c) { $('view').innerHTML = '<div class="card">Centre not found</div>'; return; }
+    var ds = d.devices.filter(function(x){ return x.centre === code; });
+    var h = '<div class="card"><div class="row"><div class="grow"><div class="big">' + esc(c.code) + '</div><div class="muted">' + esc(c.name) + ' ' + esc(c.city || '') + '</div></div>' +
+      (canEdit(code) ? '<button class="btn sm" onclick="editDevice({Centre:\'' + esc(code) + '\'})">Add device</button>' : '') + '</div>' +
+      '<div class="muted" style="margin-top:6px">' + (c.closedReason ? 'Closed today, ' + esc(c.closedReason) : 'Open ' + esc(c.hours)) + '</div>' +
+      (c.nextClosed ? '<div class="muted">Next closed ' + esc(c.nextClosed) + '</div>' : '') + '</div>';
+    h += '<div class="card list">' + (ds.length ? ds.map(devItem).join('') : '<div class="muted">No devices yet</div>') + '</div>';
+    $('view').innerHTML = h;
+  }).catch(fail);
+}
+function devDetail(id){
+  var x = (DASH.devices.filter(function(d){ return d.id === id; })[0]);
+  if (!x) return;
+  var h = '<div class="row"><div class="grow"><div class="big">' + esc(x.name) + '</div><div class="muted">' + esc(x.centre) + '  ' + esc(x.type) + '</div></div><span class="pill ' + esc(x.state) + '">' + esc(x.state) + '</span></div><br>' +
+    '<div class="kv"><div>Host</div><div>' + esc(x.host) + (x.method === 'TCP' ? ' port ' + esc(x.port) : '') + '</div>' +
+    '<div>Check</div><div>' + esc(x.method || 'ICMP') + ' every ' + x.interval + ' min</div>' +
+    '<div>Window today</div><div>' + esc(x.window) + '</div>' +
+    '<div>Last check</div><div>' + esc(x.lastCheck || 'none') + '</div>' +
+    '<div>Response</div><div>' + (x.ms !== '' ? esc(x.ms) + ' ms' : 'none') + '</div>' +
+    '<div>Last online</div><div>' + esc(x.lastOnline || 'never') + '</div>' +
+    '<div>Last change</div><div>' + esc(x.lastChange || 'none') + '</div>' +
+    '<div>Fails in a row</div><div>' + esc(x.fails) + '</div>' +
+    '<div>Uptime today</div><div>' + (x.uptime != null ? x.uptime + '%' : 'no data') + '</div>' +
+    '<div>Detail</div><div>' + esc(x.detail) + '</div></div><br>' +
+    '<div class="row">' + (canEdit(x.centre) ? '<button class="btn" onclick="closeModal();openDevice(\'' + x.id + '\')">Edit</button>' : '') +
+    '<button class="btn sec" onclick="closeModal();go(\'events\',\'' + esc(x.centre) + '\',true)">History</button><div class="grow"></div><button class="btn sec" onclick="closeModal()">Close</button></div>';
+  modal(h);
+}
+
+/* ---------- modal and forms ---------- */
+function modal(html){ $('modal').innerHTML = '<div class="modal" onclick="if(event.target===this)closeModal()"><div class="sheet">' + html + '</div></div>'; }
+function closeModal(){ $('modal').innerHTML = ''; }
+
+/* field: {k,label,type,opts,hint,ro,half}  types text number time date select check textarea days centres email */
+function fieldHtml(f, v){
+  v = v == null ? '' : String(v);
+  var id = 'fld_' + f.k, ro = f.ro ? ' disabled' : '';
+  var h = '<div class="f"><label>' + esc(f.label) + '</label>';
+  if (f.type === 'select') {
+    var opts = typeof f.opts === 'function' ? f.opts() : f.opts;
+    h += '<select id="' + id + '"' + ro + '>' + opts.map(function(o){ var val = typeof o === 'object' ? o.v : o, lab = typeof o === 'object' ? o.l : o; return '<option value="' + esc(val) + '"' + (val === v ? ' selected' : '') + '>' + esc(lab) + '</option>'; }).join('') + '</select>';
+  } else if (f.type === 'check') {
+    h += '<select id="' + id + '"' + ro + '><option value="true"' + (v !== 'false' ? ' selected' : '') + '>Yes</option><option value="false"' + (v === 'false' ? ' selected' : '') + '>No</option></select>';
+  } else if (f.type === 'textarea') {
+    h += '<textarea id="' + id + '" rows="3"' + ro + '>' + esc(v) + '</textarea>';
+  } else if (f.type === 'days') {
+    var sel = v.split(/[ ,]+/).map(function(x){ return x.slice(0,3).toLowerCase(); });
+    h += '<div class="chips" id="' + id + '">' + DAYS.map(function(d){ return '<label><input type="checkbox" value="' + d + '"' + (sel.indexOf(d.toLowerCase()) >= 0 ? ' checked' : '') + '>' + d + '</label>'; }).join('') + '</div>';
+  } else if (f.type === 'centres') {
+    var cs = v.toUpperCase().split(/[ ,]+/);
+    var all = (f.allowAll !== false) ? [{code:'ALL'}].concat(LK.centres) : LK.centres;
+    h += '<div class="chips" id="' + id + '">' + all.map(function(c){ return '<label><input type="checkbox" value="' + esc(c.code) + '"' + (cs.indexOf(c.code) >= 0 ? ' checked' : '') + '>' + esc(c.code === 'ALL' ? 'All centres' : c.code) + '</label>'; }).join('') + '</div>';
+  } else {
+    h += '<input id="' + id + '" type="' + (f.type || 'text') + '" value="' + esc(v) + '"' + ro + (f.ph ? ' placeholder="' + esc(f.ph) + '"' : '') + '>';
+  }
+  if (f.hint) h += '<div class="hint">' + esc(f.hint) + '</div>';
+  return h + '</div>';
+}
+function readField(f){
+  var el = $('fld_' + f.k);
+  if (!el) return '';
+  if (f.type === 'days' || f.type === 'centres') {
+    return Array.prototype.slice.call(el.querySelectorAll('input:checked')).map(function(i){ return i.value; }).join(',');
+  }
+  return el.value.trim();
+}
+function form(title, fields, obj, onSave, extra){
+  obj = obj || {};
+  var h = '<div class="h2" style="margin-top:0">' + esc(title) + '</div>';
+  var i = 0;
+  while (i < fields.length) {
+    var f = fields[i];
+    if (f.html) { h += f.html; i++; continue; }
+    if (f.half && fields[i+1] && fields[i+1].half) { h += '<div class="two">' + fieldHtml(f, obj[f.k]) + fieldHtml(fields[i+1], obj[fields[i+1].k]) + '</div>'; i += 2; }
+    else { h += fieldHtml(f, obj[f.k]); i++; }
+  }
+  h += '<div class="row" style="margin-top:14px">' + (onSave ? '<button class="btn" id="saveBtn">Save</button>' : '') +
+    (extra || []).map(function(x, j){ return '<button class="btn ' + (x.cls || 'sec') + '" id="xb' + j + '">' + esc(x.label) + '</button>'; }).join('') +
+    '<div class="grow"></div><button class="btn sec" onclick="closeModal()">Cancel</button></div>';
+  modal(h);
+  if (onSave) $('saveBtn').onclick = function(){
+    var out = {};
+    fields.forEach(function(f){ if (f.k) out[f.k] = readField(f); });
+    this.disabled = true; var b = this;
+    Promise.resolve(onSave(out)).then(function(ok){ if (ok !== false) closeModal(); else b.disabled = false; }).catch(function(e){ b.disabled = false; fail(e); });
+  };
+  (extra || []).forEach(function(x, j){ $('xb' + j).onclick = function(){ x.fn(); }; });
+}
+
+/* ---------- devices ---------- */
+function centreFilter(onchange){
+  return '<select id="cf" onchange="F.centre=this.value;' + onchange + '"><option value="">All centres</option>' +
+    LK.centres.map(function(c){ return '<option' + (F.centre === c.code ? ' selected' : '') + '>' + esc(c.code) + '</option>'; }).join('') + '</select>';
+}
+var DEVS = [];
+function v_devices(){
+  call('devices').then(function(list){
+    DEVS = list; if (VIEW !== 'devices') return;
+    var l = list.filter(function(d){ return !F.centre || d.Centre === F.centre; }).sort(function(a, b){ return (a.Centre + a.Type + a.Name) < (b.Centre + b.Type + b.Name) ? -1 : 1; });
+    var h = '<div class="bar">' + centreFilter('render()') + (ME.role !== 'viewer' ? '<button class="btn" onclick="editDevice({Centre:F.centre})">Add</button>' : '') + '</div>';
+    var cur = '';
+    l.forEach(function(d){
+      if (d.Centre !== cur) { if (cur) h += '</div>'; cur = d.Centre; h += '<div class="h2">' + esc(cur) + '</div><div class="card list">'; }
+      h += '<div class="item" onclick="openDevice(\'' + d.ID + '\')"><span class="dot" style="background:' + (d.Enabled === 'false' ? 'var(--idle)' : 'var(--blue)') + '"></span><div class="grow"><div class="title">' + esc(d.Name) + '</div>' +
+        '<div class="muted">' + esc(d.Type) + '  ' + esc(d.Host) + '  ' + esc(d.Method) + (d.Method === 'TCP' ? ' ' + esc(d.Port) : '') + '  every ' + esc(d.IntervalMin) + ' min' + (d.Enabled === 'false' ? '  disabled' : '') + '</div></div></div>';
+    });
+    if (cur) h += '</div>';
+    if (!l.length) h += '<div class="card muted">No devices</div>';
+    $('view').innerHTML = h;
+  }).catch(fail);
+}
+function openDevice(id){
+  var d = DEVS.filter(function(x){ return x.ID === id; })[0];
+  if (d) { editDevice(d); return; }
+  call('devices').then(function(list){ DEVS = list; var x = list.filter(function(y){ return y.ID === id; })[0]; if (x) editDevice(x); }).catch(fail);
+}
+function editDevice(d){
+  d = Object.assign({ Method: 'ICMP', IntervalMin: '5', SkipHolidays: 'true', Enabled: 'true' }, d || {});
+  var isNew = !d.ID;
+  var ro = !canEdit(d.Centre || (LK.centres[0] || {}).code);
+  var fields = [
+    { k: 'Centre', label: 'Centre', type: 'select', opts: LK.centres.filter(function(c){ return canEdit(c.code); }).map(function(c){ return { v: c.code, l: c.code + ' ' + (c.name !== c.code ? c.name : '') }; }), half: true },
+    { k: 'Type', label: 'Device type', type: 'select', opts: LK.types.map(function(t){ return t.Type; }), half: true },
+    { k: 'Name', label: 'Name', ph: 'Main Server' },
+    { k: 'Host', label: 'IP address or host name', ph: '192.168.1.200' },
+    { k: 'Method', label: 'Check method', type: 'select', opts: [{v:'ICMP',l:'Ping'},{v:'TCP',l:'TCP port'}], half: true },
+    { k: 'Port', label: 'Port for TCP', type: 'number', half: true },
+    { k: 'IntervalMin', label: 'Check every, minutes', type: 'number', half: true },
+    { k: 'Enabled', label: 'Monitoring on', type: 'check', half: true },
+    { k: 'Days', label: 'Days to check', type: 'days', hint: 'Leave all unticked to follow the centre working days' },
+    { k: 'Start', label: 'Start time', type: 'time', half: true },
+    { k: 'End', label: 'End time', type: 'time', half: true },
+    { html: '<div class="hint" style="margin:-6px 0 10px;font-size:12px;color:var(--muted)">Leave both times blank to follow centre working hours</div>' },
+    { k: 'SkipHolidays', label: 'Pause on centre holidays', type: 'check' }
+  ];
+  if (isAdmin()) fields.push({ k: 'Agent', label: 'Agent', type: 'select', opts: [{v:'',l:'Any agent covering this centre'}].concat(LK.agents.map(function(a){ return { v: a, l: a }; })) });
+  fields = fields.concat([
+    { html: '<div class="h2">Specifics</div>' },
+    { k: 'Brand', label: 'Brand', half: true }, { k: 'Model', label: 'Model', half: true },
+    { k: 'Serial', label: 'Serial number', half: true }, { k: 'Warranty', label: 'Warranty till', type: 'date', half: true },
+    { k: 'Location', label: 'Location in centre' },
+    { k: 'Notes', label: 'Notes', type: 'textarea' }
+  ]);
+  if (!d.Centre && LK.centres.length) d.Centre = LK.centres[0].code;
+  if (isNew && !d.Type && LK.types.length) d.Type = LK.types[0].Type;
+  var extra = [];
+  if (!isNew && !ro) extra.push({ label: 'Delete', cls: 'red', fn: function(){
+    if (!confirm('Delete ' + d.Name + '?')) return;
+    call('deleteDevice', { ID: d.ID }).then(function(){ closeModal(); toast('Deleted'); render(); }).catch(fail);
+  }});
+  form(isNew ? 'Add device' : 'Edit device', fields, d, ro ? null : function(o){
+    o.ID = d.ID || '';
+    return call('saveDevice', o).then(function(){ toast('Saved'); DASH = null; render(); });
+  }, extra);
+  if (isNew) {
+    var applyType = function(){
+      var t = LK.types.filter(function(x){ return x.Type === $('fld_Type').value; })[0];
+      if (!t) return;
+      $('fld_Name').value = $('fld_Name').value || t.Type;
+      if (t.DefaultMethod) $('fld_Method').value = t.DefaultMethod === 'TCP' ? 'TCP' : 'ICMP';
+      $('fld_Port').value = t.DefaultPort || '';
+      if (t.DefaultInterval) $('fld_IntervalMin').value = t.DefaultInterval;
+    };
+    $('fld_Type').onchange = function(){ $('fld_Name').value = ''; applyType(); };
+    applyType();
+  }
+}
+
+/* ---------- holidays ---------- */
+var SHOW_PAST = false;
+function v_holidays(){
+  call('holidays').then(function(list){
+    if (VIEW !== 'holidays') return;
+    var t = todayKey(), from = SHOW_PAST ? '0000' : t;
+    var l = list.filter(function(x){ return x.Date >= from && (!F.centre || x.Centre === F.centre || x.Centre === 'ALL'); });
+    var groups = {};
+    l.forEach(function(x){ var k = x.Date + '|' + x.Reason; (groups[k] = groups[k] || []).push(x); });
+    var h = '<div class="bar">' + centreFilter('render()') + (ME.role !== 'viewer' ? '<button class="btn" onclick="addHoliday()">Add</button>' : '') + '</div>' +
+      '<div class="bar"><label class="muted"><input type="checkbox" style="width:auto"' + (SHOW_PAST ? ' checked' : '') + ' onchange="SHOW_PAST=this.checked;render()"> Show past</label>' +
+      '<span class="muted">Sundays and other closed weekdays come from centre working hours</span></div><div class="card list">';
+    var keys = Object.keys(groups).sort();
+    keys.forEach(function(k){
+      var g = groups[k], p = k.split('|');
+      h += '<div class="item" style="cursor:default;display:block"><div class="title">' + esc(niceDate(p[0])) + ' <span class="muted">' + esc(p[1]) + '</span></div><div>' +
+        g.map(function(x){ return '<span class="hchip">' + esc(x.Centre === 'ALL' ? 'All centres' : x.Centre) + ((x.Centre === 'ALL' ? isAdmin() : canEdit(x.Centre)) ? '<button onclick="delHoliday(\'' + x.ID + '\',\'' + esc(x.Centre) + '\',\'' + x.Date + '\')">&times;</button>' : '') + '</span>'; }).join('') + '</div></div>';
+    });
+    if (!keys.length) h += '<div class="muted">No holidays</div>';
+    $('view').innerHTML = h + '</div>';
+  }).catch(fail);
+}
+function addHoliday(){
+  form('Add holiday', [
+    { k: 'Date', label: 'Date', type: 'date' },
+    { k: 'Reason', label: 'Reason', ph: 'Onam' },
+    { k: 'Centres', label: 'Centres', type: 'centres', allowAll: true }
+  ], { Date: todayKey(), Centres: F.centre }, function(o){
+    return call('addHolidays', o).then(function(r){ toast(r.added + ' added'); render(); });
+  });
+}
+function delHoliday(id, c, d){
+  if (!confirm('Remove holiday ' + niceDate(d) + ' for ' + c + '?')) return;
+  call('deleteHoliday', { ID: id }).then(function(){ toast('Removed'); render(); }).catch(fail);
+}
+
+/* ---------- centres ---------- */
+var CENTRES = [];
+function v_centres(){
+  call('centres').then(function(list){
+    CENTRES = list; if (VIEW !== 'centres') return;
+    var h = isAdmin() ? '<div class="bar"><div class="grow"></div><button class="btn" onclick="editCentre({})">Add centre</button></div>' : '';
+    h += '<div class="card list">' + list.map(function(c){
+      var days = DAYS.filter(function(d){ return c[d + 'Open'] && c[d + 'Close']; });
+      return '<div class="item" onclick="editCentre(CENTRES[' + list.indexOf(c) + '])"><span class="dot" style="background:' + (c.Active === 'false' ? 'var(--idle)' : 'var(--up)') + '"></span><div class="grow"><div class="title">' + esc(c.Code) + '  ' + esc(c.Name !== c.Code ? c.Name : '') + '</div>' +
+        '<div class="muted">' + esc(days.join(' ')) + (c.MonOpen ? '  ' + esc(c.MonOpen) + ' to ' + esc(c.MonClose) : '') + '</div>' +
+        '<div class="muted">' + (c.ManagerEmails ? esc(c.ManagerEmails) : '<span style="color:var(--down)">No manager email</span>') + '</div></div></div>';
+    }).join('') + '</div>';
+    $('view').innerHTML = h;
+  }).catch(fail);
+}
+function editCentre(c){
+  var isNew = !c.Code, ro = !isAdmin();
+  var hrs = '<div class="f"><label>Working hours, leave a day blank if closed</label><div class="hours"><span></span><span class="muted">Open</span><span class="muted">Close</span>' +
+    DAYS.map(function(d){ return '<span>' + d + '</span><input type="time" id="fld_' + d + 'Open" value="' + esc(c[d + 'Open'] || '') + '"' + (ro ? ' disabled' : '') + '><input type="time" id="fld_' + d + 'Close" value="' + esc(c[d + 'Close'] || '') + '"' + (ro ? ' disabled' : '') + '>'; }).join('') +
+    '</div><button class="btn sec sm" style="margin-top:6px" id="copyMon" type="button">Copy Monday to Tue to Sat</button></div>';
+  var fields = [
+    { k: 'Code', label: 'Centre code', ro: !isNew, half: true, ph: 'CHN' },
+    { k: 'Active', label: 'Active', type: 'check', half: true },
+    { k: 'Name', label: 'Name', half: true }, { k: 'City', label: 'City', half: true },
+    { k: 'ManagerEmails', label: 'Manager email', type: 'email', hint: 'Shutdown reminders go here, comma separated for more than one' },
+    { k: 'CC', label: 'CC for this centre' },
+    { html: hrs },
+    { k: 'Notes', label: 'Notes', type: 'textarea' }
+  ];
+  DAYS.forEach(function(d){ fields.push({ k: d + 'Open', type: 'hidden' }); fields.push({ k: d + 'Close', type: 'hidden' }); });
+  var extra = [];
+  if (!isNew && !ro) extra.push({ label: 'Delete', cls: 'red', fn: function(){
+    if (!confirm('Delete centre ' + c.Code + '?')) return;
+    call('deleteCentre', { Code: c.Code }).then(function(){ closeModal(); toast('Deleted'); reloadLookups().then(render); }).catch(fail);
+  }});
+  form(isNew ? 'Add centre' : 'Centre ' + c.Code, fields.filter(function(f){ return f.type !== 'hidden'; }), c, ro ? null : function(o){
+    DAYS.forEach(function(d){ o[d + 'Open'] = $('fld_' + d + 'Open').value; o[d + 'Close'] = $('fld_' + d + 'Close').value; });
+    o.Code = isNew ? o.Code : c.Code;
+    return call('saveCentre', o).then(function(){ toast('Saved'); reloadLookups().then(render); });
+  }, extra);
+  if (!ro) $('copyMon').onclick = function(){ ['Tue','Wed','Thu','Fri','Sat'].forEach(function(d){ $('fld_' + d + 'Open').value = $('fld_MonOpen').value; $('fld_' + d + 'Close').value = $('fld_MonClose').value; }); };
+}
+
+/* ---------- more ---------- */
+function v_more(){
+  var items = [['network', 'Network scan, all devices found'], ['events', 'Status history'], ['types', 'Device types']];
+  if (isAdmin()) items = items.concat([['users', 'Users'], ['agents', 'Agents'], ['client', 'PC client updates'], ['settings', 'Settings'], ['log', 'Activity and error log']]);
+  var h = '<div class="card"><div class="title">' + esc(ME.name || ME.username) + '</div><div class="muted">' + esc(ME.role) + ', centres ' + esc(ME.centres) + '</div><div class="muted">Dashboard version ' + esc(ME.version || '') + '</div></div><div class="card list">' +
+    items.map(function(i){ return '<div class="item" onclick="go(\'' + i[0] + '\',null,true)"><div class="grow">' + i[1] + '</div><span class="muted">&#8250;</span></div>'; }).join('') +
+    '<div class="item" onclick="changePw(false)"><div class="grow">Change password</div></div>' +
+    '<div class="item" onclick="logout()"><div class="grow" style="color:var(--down)">Sign out</div></div></div>';
+  $('view').innerHTML = h;
+}
+function v_events(centre){
+  if (centre && !F.centre) F.centre = centre;
+  call('events', { centre: F.centre, limit: 300 }).then(function(list){
+    if (VIEW !== 'events') return;
+    var h = '<div class="bar">' + centreFilter('render()') + '</div><div class="card list">' + (list.length ? list.map(function(e){
+      return '<div class="item" style="cursor:default"><span class="dot" style="background:' + color(e.To) + '"></span><div class="grow"><div class="title">' + esc(e.Centre) + '  ' + esc(e.Name) + '  ' + esc(e.From) + ' to ' + esc(e.To) + '</div><div class="muted">' + esc(e.Time) + '  ' + esc(e.Detail) + '</div></div></div>';
+    }).join('') : '<div class="muted">No changes recorded</div>') + '</div>';
+    $('view').innerHTML = h;
+  }).catch(fail);
+}
+function v_types(){
+  call('types').then(function(list){
+    if (VIEW !== 'types') return;
+    var h = isAdmin() ? '<div class="bar"><div class="grow"></div><button class="btn" onclick="editType({})">Add type</button></div>' : '';
+    h += '<div class="card list">' + list.map(function(t, i){
+      return '<div class="item" onclick=\'editType(' + JSON.stringify(t).replace(/'/g, '&#39;') + ')\'><div class="grow"><div class="title">' + esc(t.Type) + '</div><div class="muted">' + esc(t.DefaultMethod) + (t.DefaultPort ? ' ' + esc(t.DefaultPort) : '') + '  every ' + esc(t.DefaultInterval) + ' min' + (t.ShutdownReminder === 'true' ? '  in shutdown mail' : '') + '</div></div></div>';
+    }).join('') + '</div>';
+    $('view').innerHTML = h;
+  }).catch(fail);
+}
+function editType(t){
+  var isNew = !t.Type, ro = !isAdmin();
+  form(isNew ? 'Add device type' : t.Type, [
+    { k: 'Type', label: 'Type name', ro: !isNew },
+    { k: 'DefaultMethod', label: 'Default check', type: 'select', opts: [{v:'ICMP',l:'Ping'},{v:'TCP',l:'TCP port'}], half: true },
+    { k: 'DefaultPort', label: 'Default port', type: 'number', half: true },
+    { k: 'DefaultInterval', label: 'Default interval, minutes', type: 'number', half: true },
+    { k: 'ShutdownReminder', label: 'List in shutdown mail', type: 'check', half: true }
+  ], Object.assign({ DefaultMethod: 'ICMP', DefaultInterval: '5', ShutdownReminder: 'false' }, t), ro ? null : function(o){
+    if (!isNew) o.Type = t.Type;
+    return call('saveType', o).then(function(){ toast('Saved'); reloadLookups().then(render); });
+  }, (!isNew && !ro) ? [{ label: 'Delete', cls: 'red', fn: function(){ if (!confirm('Delete type ' + t.Type + '?')) return; call('deleteType', { Type: t.Type }).then(function(){ closeModal(); reloadLookups().then(render); }).catch(fail); } }] : []);
+}
+var USERS = [];
+function v_users(){
+  call('users').then(function(list){
+    USERS = list; if (VIEW !== 'users') return;
+    $('view').innerHTML = '<div class="bar"><div class="grow"></div><button class="btn" onclick="editUser({})">Add user</button></div><div class="card list">' + list.map(function(x, i){
+      return '<div class="item" onclick="editUser(USERS[' + i + '])"><span class="dot" style="background:' + (x.Active === 'false' ? 'var(--idle)' : 'var(--up)') + '"></span><div class="grow"><div class="title">' + esc(x.Name || x.Username) + ' <span class="muted">' + esc(x.Username) + '</span></div><div class="muted">' + esc(x.Role) + '  ' + esc(x.Centres) + (x.LastLogin ? '  last login ' + esc(x.LastLogin) : '') + '</div></div></div>';
+    }).join('') + '</div>';
+  }).catch(fail);
+}
+function showTemp(u, pw){ modal('<div class="h2" style="margin-top:0">Temporary password</div><p>User <b>' + esc(u) + '</b></p><p class="big" style="letter-spacing:2px">' + esc(pw) + '</p><p class="muted">Shown only once. The user must change it at first sign in.</p><button class="btn" onclick="closeModal()">Done</button>'); }
+function editUser(x){
+  var isNew = !x.Username;
+  var extra = [];
+  if (!isNew) {
+    extra.push({ label: 'Reset password', fn: function(){ if (!confirm('Reset password for ' + x.Username + '?')) return; call('resetPassword', { Username: x.Username }).then(function(r){ showTemp(x.Username, r.tempPassword); }).catch(fail); } });
+    extra.push({ label: 'Delete', cls: 'red', fn: function(){ if (!confirm('Delete user ' + x.Username + '?')) return; call('deleteUser', { Username: x.Username }).then(function(){ closeModal(); render(); }).catch(fail); } });
+  }
+  form(isNew ? 'Add user' : x.Username, [
+    { k: 'Username', label: 'Username', ro: !isNew },
+    { k: 'Name', label: 'Name', half: true }, { k: 'Email', label: 'Email', type: 'email', half: true },
+    { k: 'Role', label: 'Role', type: 'select', opts: [{v:'viewer',l:'Viewer, read only'},{v:'manager',l:'Manager, edits devices and holidays of own centres'},{v:'admin',l:'Admin, everything'}], half: true },
+    { k: 'Active', label: 'Active', type: 'check', half: true },
+    { k: 'Centres', label: 'Centres', type: 'centres' }
+  ], Object.assign({ Role: 'viewer', Active: 'true' }, x), function(o){
+    if (!isNew) o.Username = x.Username;
+    return call('saveUser', o).then(function(r){ render(); if (r.tempPassword) { setTimeout(function(){ showTemp(o.Username, r.tempPassword); }, 50); } else toast('Saved'); });
+  }, extra);
+}
+var AGENTS = null;
+function v_agents(){
+  call('agents').then(function(r){
+    AGENTS = r; if (VIEW !== 'agents') return;
+    $('view').innerHTML = '<div class="card"><div class="muted">Server URL for agent.config.json</div><div style="word-break:break-all;font-size:13px">' + esc(r.url) + '</div></div>' +
+      '<div class="bar"><div class="grow"></div><button class="btn" onclick="editAgent({})">Add agent</button></div><div class="card list">' + r.list.map(function(a, i){
+        return '<div class="item" onclick="editAgent(AGENTS.list[' + i + '])"><div class="grow"><div class="title">' + esc(a.AgentID) + ' <span class="muted">' + esc(a.Name) + '</span></div><div class="muted">Centres ' + esc(a.Centres) + '  last seen ' + esc(a.LastSeen || 'never') + (a.Version ? '  v' + esc(a.Version) : '') + '</div></div></div>';
+      }).join('') + '</div>';
+  }).catch(fail);
+}
+function showKey(id, key){ modal('<div class="h2" style="margin-top:0">Agent key for ' + esc(id) + '</div><p style="word-break:break-all;font-family:monospace;font-size:16px">' + esc(key) + '</p><p class="muted">Put this in agent.config.json on the agent PC. Shown only once.</p><button class="btn" onclick="closeModal()">Done</button>'); }
+function editAgent(a){
+  var isNew = !a.AgentID;
+  var extra = [];
+  if (!isNew) {
+    extra.push({ label: 'New key', fn: function(){ if (!confirm('Make a new key? The old key stops working.')) return; call('saveAgent', Object.assign({}, a, { newKey: 'true' })).then(function(r){ showKey(a.AgentID, r.key); }).catch(fail); } });
+    extra.push({ label: 'Delete', cls: 'red', fn: function(){ if (!confirm('Delete agent ' + a.AgentID + '?')) return; call('deleteAgent', { AgentID: a.AgentID }).then(function(){ closeModal(); reloadLookups().then(render); }).catch(fail); } });
+  }
+  form(isNew ? 'Add agent' : a.AgentID, [
+    { k: 'AgentID', label: 'Agent ID', ro: !isNew, ph: 'AGENT2' },
+    { k: 'Name', label: 'Name or PC', ph: 'CHN reception PC' },
+    { k: 'Centres', label: 'Centres this agent checks', type: 'centres', hint: 'A device can also be pinned to one agent in the device form' }
+  ], Object.assign({ Centres: 'ALL' }, a), function(o){
+    if (!isNew) o.AgentID = a.AgentID;
+    return call('saveAgent', o).then(function(r){ reloadLookups().then(render); if (r.key) setTimeout(function(){ showKey(o.AgentID.toUpperCase(), r.key); }, 50); else toast('Saved'); });
+  }, extra);
+}
+function v_settings(){
+  call('settings').then(function(list){
+    if (VIEW !== 'settings') return;
+    var h = '<div class="card">' + list.map(function(s){
+      var bool = s.Value === 'true' || s.Value === 'false';
+      return '<div class="f"><label>' + esc(s.Key) + '</label>' + (bool ? '<select data-k="' + esc(s.Key) + '"><option value="true"' + (s.Value === 'true' ? ' selected' : '') + '>Yes</option><option value="false"' + (s.Value === 'false' ? ' selected' : '') + '>No</option></select>' :
+        '<input data-k="' + esc(s.Key) + '" value="' + esc(s.Value) + '"' + (s.Key === 'ShutdownMailTime' ? ' type="time"' : '') + '>') + '<div class="hint">' + esc(s.Description) + '</div></div>';
+    }).join('') + '<button class="btn" onclick="saveSettings()">Save settings</button></div>' +
+      '<div class="card row" style="flex-wrap:wrap"><button class="btn sec" onclick="previewShutdown()">Preview shutdown mails</button><button class="btn sec" onclick="testMail()">Send test mail</button><button class="btn sec" onclick="testPush()">Send test push</button></div>' +
+      '<div class="card muted">Phone alerts. Install the ntfy app from Play Store or App Store, tap Add subscription, enter the PushTopic shown above, and keep the server as ntfy.sh. Everyone who subscribes gets the alerts. Keep the topic secret.</div>';
+    $('view').innerHTML = h;
+  }).catch(fail);
+}
+function saveSettings(){
+  var v = {};
+  document.querySelectorAll('[data-k]').forEach(function(el){ v[el.getAttribute('data-k')] = el.value.trim(); });
+  call('saveSettings', { values: v }).then(function(){ toast('Settings saved'); }).catch(fail);
+}
+function previewShutdown(){
+  call('previewShutdown').then(function(list){
+    modal('<div class="h2" style="margin-top:0">Next shutdown mails</div>' + (list.length ? list.map(function(x){
+      return '<div class="card"><div class="title">' + esc(x.centre) + '  ' + esc(x.from) + (x.to !== x.from ? ' to ' + esc(x.to) : '') + '</div><div class="muted">' + esc(x.reason) + '</div>' +
+        '<div class="muted">To ' + (x.recipients ? esc(x.recipients) : '<span style="color:var(--down)">no manager email</span>') + (x.cc ? ', CC ' + esc(x.cc) : '') + '</div>' +
+        '<div class="muted">' + esc(x.servers.join(', ') || 'no servers listed') + '</div>' + (x.alreadySent ? '<div class="muted">Already sent</div>' : '') + '</div>';
+    }).join('') : '<p class="muted">No centre closes on the target day.</p>') + '<button class="btn" onclick="closeModal()">Close</button>');
+  }).catch(fail);
+}
+function testMail(){ call('testMail').then(function(r){ toast('Sent to ' + r.to); }).catch(fail); }
+function testPush(){ call('testPush').then(function(r){ toast(r.ok ? 'Push sent' : 'Push failed, check the log'); }).catch(fail); }
+
+/* ---------- PCs ---------- */
+var PCS = [], PCQ = '';
+function v_pcs(){
+  call('pcs').then(function(list){
+    PCS = list; if (VIEW !== 'pcs') return;
+    drawPcs();
+  }).catch(fail);
+}
+function drawPcs(){
+  var q = PCQ.toLowerCase();
+  var l = PCS.filter(function(p){ return (!F.centre || p.Centre === F.centre) && (!q || [p.Hostname, p.Desk, p.AssignedTo, p.IPs, p.OS, p.Serial, p.LoggedUser, p.Model].join(' ').toLowerCase().indexOf(q) >= 0); })
+    .sort(function(a, b){ return ((a.Centre || 'ZZZ') + a.Hostname) < ((b.Centre || 'ZZZ') + b.Hostname) ? -1 : 1; });
+  var h = '<div class="bar">' + centreFilter('drawPcs()') + '<input id="pcq" placeholder="Search name, desk, IP, user" value="' + esc(PCQ) + '" style="flex:2" oninput="PCQ=this.value;drawPcs();var e=$(\'pcq\');e.focus();e.setSelectionRange(e.value.length,e.value.length)"></div>';
+  h += '<div class="muted" style="margin:0 2px 8px">' + l.length + ' PCs. They appear here once the inventory script runs on them.</div><div class="card list">';
+  h += l.map(function(p){
+    var pdot = !p.LastSeen ? (p.stale ? 'var(--warn)' : 'var(--blue)') : !p.online ? 'var(--idle)' : (p.NetStatus && p.NetStatus.indexOf('All OK') !== 0) ? 'var(--down)' : 'var(--up)';
+    return '<div class="item" onclick="openPc(\'' + esc(p.PCID) + '\')"><span class="dot" style="background:' + pdot + '"></span><div class="grow">' +
+      '<div class="title">' + esc(p.Hostname) + (p.Desk ? '  <span class="muted">' + esc(p.Desk) + '</span>' : '') + '</div>' +
+      '<div class="muted">' + esc(p.Centre || 'No centre') + '  ' + esc(p.IPs) + '  ' + esc(p.IPMode) + '</div>' +
+      (p.LastSeen ? '<div class="muted">' + (p.online ? esc(p.NetStatus || 'Online') : 'Offline since ' + esc(shortTs(p.LastSeen))) + '</div>' : '') +
+      '<div class="muted">' + esc((p.OS || '').replace('Microsoft ', '')) + ' ' + esc(p.DisplayVersion) + '  ' + esc(p.RAMGB) + ' GB' + (p.AssignedTo ? '  ' + esc(p.AssignedTo) : '') + '</div></div></div>';
+  }).join('') + (l.length ? '' : '<div class="muted">No PCs</div>') + '</div>';
+  $('view').innerHTML = h;
+}
+function openPc(id){
+  call('pc', { PCID: id }).then(function(r){
+    var p = r.pc;
+    var kv = [['Status', p.LastSeen ? (p.online ? 'Online, ' + (p.NetStatus || '') : 'Offline, last seen ' + p.LastSeen) : 'No tray client yet'], ['Network detail', p.NetDetail], ['Client version', p.ClientVersion], ['Centre', p.Centre || 'not set'], ['Desk', p.Desk], ['Assigned to', p.AssignedTo], ['Logged in user', p.LoggedUser],
+      ['Make and model', (p.Manufacturer || '') + ' ' + (p.Model || '')], ['Serial', p.Serial], ['CPU', p.CPU + (p.Cores ? ', ' + p.Cores + ' cores' : '')],
+      ['RAM', p.RAMGB ? p.RAMGB + ' GB' : ''], ['Disks', p.Disks], ['Windows', p.OS + ' ' + (p.DisplayVersion || '')], ['Build', p.OSVersion + ' ' + p.OSBuild + ' ' + (p.Architecture || '')],
+      ['Installed on', p.InstallDate], ['Last boot', p.LastBoot], ['IP address', p.IPs], ['IP mode', p.IPMode], ['Gateway', p.Gateway], ['DNS', p.DNS], ['MAC', p.MACs],
+      ['Domain or workgroup', p.Domain], ['Antivirus', p.Antivirus], ['Office', p.Office], ['Software count', p.SoftwareCount], ['Last report', p.LastReport + (p.stale ? '  old' : '')],
+      ['Monitoring', p.DeviceID ? 'Linked to a Desktop PC device' : 'Not monitored'], ['Notes', p.Notes]];
+    var edit = p.Centre ? canEdit(p.Centre) : isAdmin();
+    var h = '<div class="row"><div class="grow"><div class="big">' + esc(p.Hostname) + '</div><div class="muted">' + esc(p.PCID) + '</div></div></div><br><div class="kv">' +
+      kv.map(function(x){ return '<div>' + esc(x[0]) + '</div><div>' + esc(x[1] || '') + '</div>'; }).join('') + '</div>' +
+      '<div class="h2">Software (' + r.software.length + ')</div><input placeholder="Filter software" oninput="filterSoft(this.value)" style="margin-bottom:6px"><div id="softList" style="max-height:260px;overflow:auto;font-size:13px">' +
+      r.software.map(function(s){ return '<div class="sw" style="padding:5px 0;border-bottom:1px solid var(--line)">' + esc(s.Name) + ' <span class="muted">' + esc(s.Version) + '  ' + esc(s.Publisher) + '</span></div>'; }).join('') + '</div><br>' +
+      '<div class="row" style="flex-wrap:wrap">' + (edit ? '<button class="btn" id="pcEdit">Edit</button><button class="btn sec" id="pcMon">' + (p.DeviceID ? 'Update monitoring' : 'Monitor this PC') + '</button><button class="btn red" id="pcDel">Delete</button>' : '') +
+      '<div class="grow"></div><button class="btn sec" onclick="closeModal()">Close</button></div>';
+    modal(h);
+    if (!edit) return;
+    $('pcEdit').onclick = function(){
+      form('Edit ' + p.Hostname, [
+        { k: 'Centre', label: 'Centre', type: 'select', opts: [{v:'',l:'Not set'}].concat(LK.centres.filter(function(c){ return canEdit(c.code); }).map(function(c){ return { v: c.code, l: c.code }; })) },
+        { k: 'Desk', label: 'Desk or counter', ph: 'Reception 1', half: true }, { k: 'AssignedTo', label: 'Assigned to', half: true },
+        { k: 'Notes', label: 'Notes', type: 'textarea' }
+      ], p, function(o){ o.PCID = p.PCID; return call('savePc', o).then(function(){ toast('Saved'); v_pcs(); }); });
+    };
+    $('pcMon').onclick = function(){ call('monitorPc', { PCID: p.PCID }).then(function(){ toast('Added to monitoring'); closeModal(); DASH = null; v_pcs(); }).catch(fail); };
+    $('pcDel').onclick = function(){ if (!confirm('Delete ' + p.Hostname + ' from inventory? It comes back if the script runs again.')) return; call('deletePc', { PCID: p.PCID }).then(function(){ closeModal(); v_pcs(); }).catch(fail); };
+  }).catch(fail);
+}
+function v_client(){
+  call('clientInfo').then(function(r){
+    if (VIEW !== 'client') return;
+    $('view').innerHTML = '<div class="card"><div class="kv"><div>Current version</div><div>' + esc(r.version) + '</div><div>PCs with tray client</div><div>' + r.pcs + '</div><div>Online now</div><div>' + r.online + '</div><div>On this version</div><div>' + r.upToDate + '</div>' +
+      '<div>Files</div><div>' + esc(r.files.map(function(f){ return f.name; }).join(', ') || 'none uploaded yet') + '</div></div></div>' +
+      '<div class="card"><div class="title">Push an update to all PCs</div><p class="muted">Pick RheumaTray.exe, client.ps1 or both, give a higher version number and upload. Every PC downloads it within an hour, no visit needed.</p>' +
+      '<div class="f"><label>New version</label><input id="cv" placeholder="1.0.1"></div><div class="f"><label>Files</label><input id="cf2" type="file" multiple></div>' +
+      '<button class="btn" id="cub">Upload and push</button></div>';
+    $('cub').onclick = function(){
+      var files = Array.prototype.slice.call($('cf2').files), v = $('cv').value.trim(), b = this;
+      if (!files.length) { toast('Pick a file'); return; }
+      b.disabled = true; b.textContent = 'Uploading';
+      Promise.all(files.map(function(f){ return new Promise(function(res, rej){ var fr = new FileReader(); fr.onload = function(){ res({ name: f.name, b64: String(fr.result).split(',')[1] }); }; fr.onerror = rej; fr.readAsDataURL(f); }); }))
+        .then(function(list){ return call('uploadClient', { version: v, files: list }); })
+        .then(function(r){ toast('Version ' + r.version + ' pushed'); render(); })
+        .catch(function(e){ b.disabled = false; b.textContent = 'Upload and push'; fail(e); });
+    };
+  }).catch(fail);
+}
+var NET = null, NETQ = '', NET_ONLINE = false;
+function v_network(){
+  call('network').then(function(r){ NET = r; if (VIEW !== 'network') return; drawNet(); }).catch(fail);
+}
+function drawNet(){
+  var q = NETQ.toLowerCase();
+  var l = NET.hosts.filter(function(h){ return (!F.centre || h.Centre === F.centre) && (!NET_ONLINE || h.Status === 'Online') && (!q || [h.IP, h.Name, h.Guess, h.MAC, h.known, h.Note].join(' ').toLowerCase().indexOf(q) >= 0); });
+  var online = l.filter(function(h){ return h.Status === 'Online'; }).length, unknown = l.filter(function(h){ return h.Status === 'Online' && !h.known; }).length;
+  var last = NET.hosts.reduce(function(m, h){ return h.LastScan > m ? h.LastScan : m; }, '');
+  var h = '<div class="bar">' + centreFilter('drawNet()') + '<input id="netq" placeholder="Search IP, name, type, MAC" value="' + esc(NETQ) + '" style="flex:2" oninput="NETQ=this.value;drawNet();var e=$(\'netq\');e.focus();e.setSelectionRange(e.value.length,e.value.length)"></div>' +
+    '<div class="bar"><label class="muted"><input type="checkbox" style="width:auto"' + (NET_ONLINE ? ' checked' : '') + ' onchange="NET_ONLINE=this.checked;drawNet()"> Online only</label>' +
+    (isAdmin() ? '<button class="btn sm sec" onclick="call(\'scanNow\').then(function(){toast(\'Scan requested, results in a few minutes\')}).catch(fail)">Scan now</button>' : '') + '</div>' +
+    '<div class="stats"><div><span class="big">' + online + '</span><small>Online</small></div><div><span class="big" style="color:var(--warn)">' + unknown + '</span><small>Not in dashboard</small></div><div><span class="big">' + NET.subnets.length + '</span><small>Networks</small></div></div>' +
+    '<p class="muted" style="margin:0 2px 8px">Every address 1 to 254 of ' + esc(NET.subnets.map(function(s){ return s.centre + ' ' + s.prefix + 'x'; }).join(', ') || 'no networks yet') + '. Last scan ' + esc(last || 'not yet') + '</p>';
+  var cur = null;
+  l.sort(function(a, b){ return (a.Centre || 'ZZ') < (b.Centre || 'ZZ') ? -1 : (a.Centre || 'ZZ') > (b.Centre || 'ZZ') ? 1 : ipn(a.IP) - ipn(b.IP); }).forEach(function(x){
+    if (x.Centre !== cur) { if (cur !== null) h += '</div>'; cur = x.Centre; h += '<div class="h2">' + esc(cur || 'Other') + '</div><div class="card list">'; }
+    var col = x.Status !== 'Online' ? 'var(--idle)' : x.known ? 'var(--up)' : 'var(--warn)';
+    h += '<div class="item" onclick="openNet(\'' + esc(x.IP) + '\')"><span class="dot" style="background:' + col + '"></span><div class="grow"><div class="title">' + esc(x.IP) + '  ' + esc(x.Name || '') + '</div>' +
+      '<div class="muted">' + esc(x.known || ('Not in dashboard, ' + x.Guess)) + (x.Ports ? '  ports ' + esc(x.Ports) : '') + '</div>' +
+      '<div class="muted">' + (x.Status === 'Online' ? 'Online' + (x.RttMs ? ' ' + esc(x.RttMs) + ' ms' : '') : 'Offline, last seen ' + esc(shortTs(x.LastSeen))) + (x.MAC ? '  ' + esc(x.MAC) : '') + (x.Note ? '  ' + esc(x.Note) : '') + '</div></div></div>';
+  });
+  if (cur !== null) h += '</div>';
+  if (!l.length) h += '<div class="card muted">Nothing found yet. The hgrowth agent runs the first scan within a few minutes of starting.</div>';
+  $('view').innerHTML = h;
+}
+function ipn(ip){ return String(ip).split('.').reduce(function(a, x){ return a * 256 + (+x || 0); }, 0); }
+function openNet(ip){
+  var x = NET.hosts.filter(function(h){ return h.IP === ip; })[0]; if (!x) return;
+  var edit = x.Centre ? canEdit(x.Centre) : isAdmin();
+  var kv = [['IP', x.IP], ['Centre', x.Centre], ['Name', x.Name], ['In dashboard as', x.known || 'Not added'], ['Likely type', x.Guess], ['Open ports', x.Ports || 'none found'], ['MAC', x.MAC], ['Status', x.Status], ['Response', x.RttMs ? x.RttMs + ' ms' : ''], ['First seen', x.FirstSeen], ['Last seen', x.LastSeen], ['Note', x.Note]];
+  var h = '<div class="big">' + esc(x.IP) + '</div><br><div class="kv">' + kv.map(function(k){ return '<div>' + esc(k[0]) + '</div><div>' + esc(k[1] || '') + '</div>'; }).join('') + '</div><br><div class="row" style="flex-wrap:wrap">' +
+    (edit && !x.known ? '<button class="btn" id="naAdd">Add as device</button>' : '') + (edit ? '<button class="btn sec" id="naNote">Note</button><button class="btn red" id="naDel">Forget</button>' : '') +
+    '<div class="grow"></div><button class="btn sec" onclick="closeModal()">Close</button></div>';
+  modal(h);
+  if (!edit) return;
+  if ($('naAdd')) $('naAdd').onclick = function(){
+    var g = (x.Guess || '').toLowerCase(), t = '';
+    LK.types.forEach(function(tt){ var n = tt.Type.toLowerCase(); if (!t && ((g.indexOf('windows') >= 0 && n.indexOf('desktop') >= 0) || (g.indexOf('voip') >= 0 && n.indexOf('sip') >= 0))) t = tt.Type; });
+    closeModal(); editDevice({ Centre: x.Centre, Host: x.IP, Name: x.Name || '', Type: t || undefined, Notes: 'Found by network scan, ' + x.Guess + (x.MAC ? ', MAC ' + x.MAC : '') });
+  };
+  $('naNote').onclick = function(){ form('Note for ' + x.IP, [{ k: 'Note', label: 'Note', ph: 'Reception printer' }], x, function(o){ o.IP = x.IP; return call('networkNote', o).then(function(){ toast('Saved'); v_network(); }); }); };
+  $('naDel').onclick = function(){ if (!confirm('Forget ' + x.IP + '? It comes back if found again.')) return; call('networkForget', { IP: x.IP }).then(function(){ closeModal(); v_network(); }).catch(fail); };
+}
+function filterSoft(q){ q = q.toLowerCase(); document.querySelectorAll('#softList .sw').forEach(function(el){ el.style.display = el.textContent.toLowerCase().indexOf(q) >= 0 ? '' : 'none'; }); }
+function v_log(){
+  call('log').then(function(list){
+    if (VIEW !== 'log') return;
+    $('view').innerHTML = '<div class="card list">' + (list.length ? list.map(function(l){
+      return '<div class="item" style="cursor:default;display:block"><div class="title">' + esc(l.Kind) + '  ' + esc(l.Centre) + '  ' + esc(l.Status) + '</div><div class="muted">' + esc(l.Time) + '  ' + esc(l.Ref) + '  ' + esc(l.To) + '</div></div>';
+    }).join('') : '<div class="muted">Empty</div>') + '</div>';
+  }).catch(fail);
+}
+
+/* ---------- password ---------- */
+function changePw(forced){
+  var h = '<div class="h2" style="margin-top:0">' + (forced ? 'Set your own password' : 'Change password') + '</div>' +
+    '<div class="f"><label>Current password</label><input type="password" id="pw0"></div>' +
+    '<div class="f"><label>New password, at least 6 characters</label><input type="password" id="pw1"></div>' +
+    '<div class="f"><label>New password again</label><input type="password" id="pw2"></div>' +
+    '<div class="row"><button class="btn" id="pwb">Save</button><div class="grow"></div>' + (forced ? '<button class="btn sec" onclick="closeModal();logout()">Sign out</button>' : '<button class="btn sec" onclick="closeModal()">Cancel</button>') + '</div>';
+  if (forced) $('view').innerHTML = '';
+  $('modal').innerHTML = '<div class="modal"><div class="sheet">' + h + '</div></div>';
+  $('pwb').onclick = function(){
+    if ($('pw1').value !== $('pw2').value) { toast('New passwords do not match'); return; }
+    call('changePassword', { old: $('pw0').value, new: $('pw1').value }).then(function(){
+      closeModal(); toast('Password changed');
+      if (forced) { ME.mustChange = false; start(); }
+    }).catch(fail);
+  };
+}
+
+/* ---------- boot ---------- */
+(function(){
+  TOKEN = load('itm_token');
+  if (!TOKEN) { showLogin(); return; }
+  google.script.run.withSuccessHandler(function(u){ ME = u; start(); })
+    .withFailureHandler(function(){ TOKEN = null; store('itm_token', null); showLogin(); })
+    .api(TOKEN, 'me', {});
+})();
+</script>
+</body>
+</html>
