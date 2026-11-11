@@ -201,7 +201,7 @@ function v_status(){
         '<div class="muted">' + esc(c.name !== c.code ? c.name : (c.city || '')) + '</div>' +
         '<div class="muted">' + (c.hours ? 'Open ' + esc(c.hours) : 'Closed today') + '</div>' +
         '<div class="muted">' + c.up + ' up of ' + c.total + (c.pcs ? ', ' + c.pcsOnline + ' of ' + c.pcs + ' PCs online' : '') + '</div>' +
-        (c.link ? '<div style="color:var(--down);font-size:12px;margin-top:4px">' + esc(c.link) + '</div>' : '') + '</div>';
+        (c.link ? '<div style="color:var(--down);font-size:12px;margin-top:4px">' + esc(c.link) + '</div>' : '') + speedLine(c, true) + '</div>';
     });
     h += '</div><p class="muted" style="text-align:center">Updated ' + esc(d.generated.slice(11)) + '</p>';
     $('view').innerHTML = h;
@@ -231,8 +231,30 @@ function v_centre(code){
       (c.pcs ? '<div class="muted">' + c.pcsOnline + ' of ' + c.pcs + ' PCs reporting over the centre internet</div>' : '') +
       (c.link ? '<div style="color:var(--down);margin-top:6px;font-weight:600">' + esc(c.link) + '</div>' : '') + '</div>';
     h += '<div class="card list">' + (ds.length ? ds.map(devItem).join('') : '<div class="muted">No devices yet</div>') + '</div>';
+    h += speedCard(c);
     $('view').innerHTML = h;
   }).catch(fail);
+}
+function speedText(t){
+  if (t.error) return 'Test failed, ' + t.error;
+  return 'Down ' + t.down + ' Mbps, up ' + t.up + ' Mbps, ping ' + t.ping + ' ms';
+}
+function speedLine(c, small){
+  var t = (c.speeds || [])[0];
+  if (!t) return '';
+  return '<div class="muted"' + (small ? ' style="font-size:12px"' : '') + '>Internet ' + esc(speedText(t)) + (t.isp ? ', ' + esc(t.isp) : '') + ', ' + esc(shortTs(t.time)) + '</div>';
+}
+function speedCard(c){
+  var l = c.speeds || [];
+  if (!l.length) return '<div class="card"><div class="title">Internet speed</div><div class="muted">No speed test yet. One PC with the client at this centre tests the internet every few hours.</div></div>';
+  var good = l.filter(function(t){ return !t.error; });
+  var avg = function(k){ return good.length ? Math.round(good.reduce(function(a, t){ return a + (parseFloat(t[k]) || 0); }, 0) / good.length * 10) / 10 : ''; };
+  return '<div class="card list"><div class="title" style="padding:4px 0 6px">Internet speed</div>' +
+    (good.length ? '<div class="muted" style="padding-bottom:6px">Average of last ' + good.length + ', down ' + avg('down') + ' Mbps, up ' + avg('up') + ' Mbps, ping ' + avg('ping') + ' ms</div>' : '') +
+    l.map(function(t){
+      return '<div class="item" style="cursor:default"><span class="dot" style="background:' + (t.error ? 'var(--down)' : 'var(--up)') + '"></span><div class="grow"><div>' + esc(speedText(t)) + '</div>' +
+        '<div class="muted">' + esc(t.time) + (t.isp ? '  ' + esc(t.isp) : '') + (t.server ? '  server ' + esc(t.server) : '') + (t.pc ? '  from ' + esc(t.pc) : '') + '</div></div></div>';
+    }).join('') + '</div>';
 }
 function devDetail(id){
   var x = (DASH.devices.filter(function(d){ return d.id === id; })[0]);
