@@ -200,7 +200,8 @@ function v_status(){
         '<div class="row"><div class="grow title">' + esc(c.code) + '</div>' + st + '</div>' +
         '<div class="muted">' + esc(c.name !== c.code ? c.name : (c.city || '')) + '</div>' +
         '<div class="muted">' + (c.hours ? 'Open ' + esc(c.hours) : 'Closed today') + '</div>' +
-        '<div class="muted">' + c.up + ' up of ' + c.total + '</div></div>';
+        '<div class="muted">' + c.up + ' up of ' + c.total + (c.pcs ? ', ' + c.pcsOnline + ' of ' + c.pcs + ' PCs online' : '') + '</div>' +
+        (c.link ? '<div style="color:var(--down);font-size:12px;margin-top:4px">' + esc(c.link) + '</div>' : '') + '</div>';
     });
     h += '</div><p class="muted" style="text-align:center">Updated ' + esc(d.generated.slice(11)) + '</p>';
     $('view').innerHTML = h;
@@ -226,7 +227,9 @@ function v_centre(code){
     var h = '<div class="card"><div class="row"><div class="grow"><div class="big">' + esc(c.code) + '</div><div class="muted">' + esc(c.name) + ' ' + esc(c.city || '') + '</div></div>' +
       (canEdit(code) ? '<button class="btn sm" onclick="editDevice({Centre:\'' + esc(code) + '\'})">Add device</button>' : '') + '</div>' +
       '<div class="muted" style="margin-top:6px">' + (c.closedReason ? 'Closed today, ' + esc(c.closedReason) : 'Open ' + esc(c.hours)) + '</div>' +
-      (c.nextClosed ? '<div class="muted">Next closed ' + esc(c.nextClosed) + '</div>' : '') + '</div>';
+      (c.nextClosed ? '<div class="muted">Next closed ' + esc(c.nextClosed) + '</div>' : '') +
+      (c.pcs ? '<div class="muted">' + c.pcsOnline + ' of ' + c.pcs + ' PCs reporting over the centre internet</div>' : '') +
+      (c.link ? '<div style="color:var(--down);margin-top:6px;font-weight:600">' + esc(c.link) + '</div>' : '') + '</div>';
     h += '<div class="card list">' + (ds.length ? ds.map(devItem).join('') : '<div class="muted">No devices yet</div>') + '</div>';
     $('view').innerHTML = h;
   }).catch(fail);
