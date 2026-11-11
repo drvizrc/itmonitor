@@ -88,6 +88,7 @@
 <main id="view"><div class="spin">Loading</div></main>
 <nav id="nav" style="display:none">
   <button data-v="status" onclick="go('status')"><b>&#9673;</b>Status</button>
+  <button data-v="live" onclick="go('live')"><b>&#8767;</b>Live</button>
   <button data-v="assets" onclick="go('assets')"><b>&#9635;</b>Assets</button>
   <button data-v="devices" onclick="go('devices')"><b>&#9638;</b>Devices</button>
   <button data-v="pcs" onclick="go('pcs')"><b>&#9707;</b>PCs</button>
@@ -753,6 +754,82 @@ function assetView(id){
     };
   }).catch(fail);
 }
+
+/* ---------- live ping view ---------- */
+var LIVE = { res: {}, auto: false, busy: false, timer: null, last: '', q: '', downFirst: true };
+function v_live(){
+  clearInterval(LIVE.timer);
+  LIVE.timer = setInterval(function(){
+    if (VIEW !== 'live') { clearInterval(LIVE.timer); LIVE.auto = false; return; }
+    if (document.hidden || $('modal').innerHTML) return;
+    if (LIVE.auto && window.ITM_LOCAL) liveSweep(); else liveLoad();
+  }, window.ITM_LOCAL ? 10000 : 5000);
+  liveLoad();
+}
+function liveLoad(){
+  call('dashboard').then(function(d){ DASH = d; if (VIEW === 'live') drawLive(); }).catch(fail);
+}
+function liveSweep(){
+  if (LIVE.busy || !window.ITM_LOCAL) return;
+  LIVE.busy = true; drawLive();
+  fetch('/live/sweep?token=' + encodeURIComponent(TOKEN)).then(function(r){ return r.json(); }).then(function(j){
+    LIVE.busy = false;
+    if (!j.ok) { toast(j.error || 'Ping failed'); drawLive(); return; }
+    j.results.forEach(function(x){ LIVE.res[x.id] = x; });
+    LIVE.last = j.ts; drawLive();
+  }).catch(function(e){ LIVE.busy = false; toast(e.message); drawLive(); });
+}
+function drawLive(){
+  if (!DASH) return;
+  var q = LIVE.q.toLowerCase();
+  var l = DASH.devices.filter(function(d){ return d.state !== 'Disabled' && (!F.centre || d.centre === F.centre) && (!q || [d.centre, d.name, d.host, d.type].join(' ').toLowerCase().indexOf(q) >= 0); });
+  var rank = function(d){ var n = LIVE.res[d.id]; if (n) return n.ok ? 2 : 0; return d.state === 'Down' ? 0 : d.state === 'Up' ? 2 : 1; };
+  l.sort(function(a, b){ return (LIVE.downFirst ? rank(a) - rank(b) : 0) || (a.centre < b.centre ? -1 : a.centre > b.centre ? 1 : 0) || (a.name < b.name ? -1 : 1); });
+  var nowUp = 0, nowDown = 0;
+  l.forEach(function(d){ var n = LIVE.res[d.id]; var ok = n ? n.ok : d.state === 'Up' ? true : d.state === 'Down' ? false : null; if (ok === true) nowUp++; else if (ok === false) nowDown++; });
+  var h = '<div class="bar">' + centreFilter('drawLive()') + '<input id="liveq" placeholder="Search centre, name, IP" value="' + esc(LIVE.q) + '" style="flex:2" oninput="LIVE.q=this.value;drawLive();var e=$(\'liveq\');e.focus();e.setSelectionRange(e.value.length,e.value.length)"></div>';
+  if (window.ITM_LOCAL) {
+    h += '<div class="bar"><button class="btn sm" onclick="liveSweep()"' + (LIVE.busy ? ' disabled' : '') + '>' + (LIVE.busy ? 'Pinging all' : 'Ping all now') + '</button>' +
+      '<label class="muted" style="display:flex;align-items:center;gap:4px"><input type="checkbox" style="width:auto"' + (LIVE.auto ? ' checked' : '') + ' onchange="LIVE.auto=this.checked;if(this.checked)liveSweep()"> Keep pinging every 10 seconds</label>' +
+      '<label class="muted" style="display:flex;align-items:center;gap:4px"><input type="checkbox" style="width:auto"' + (LIVE.downFirst ? ' checked' : '') + ' onchange="LIVE.downFirst=this.checked;drawLive()"> Down first</label></div>';
+  } else {
+    h += '<p class="muted" style="margin:0 2px 8px">Showing the ping agent results, refreshed every 5 seconds. Direct live pinging works on the hgrowth dashboard.</p>';
+  }
+  h += '<div class="stats"><div><span class="big" style="color:var(--up)">' + nowUp + '</span><small>Replying</small></div><div><span class="big" style="color:var(--down)">' + nowDown + '</span><small>No reply</small></div><div><span class="big">' + l.length + '</span><small>Devices</small></div></div>' +
+    (LIVE.last ? '<p class="muted" style="margin:0 2px 8px">Live ping from hgrowth at ' + esc(LIVE.last) + '</p>' : '') +
+    '<div class="card list">' + l.map(function(d){
+      var n = LIVE.res[d.id];
+      var ok = n ? n.ok : null;
+      var col = n ? (ok ? 'var(--up)' : 'var(--down)') : color(d.state);
+      var now = n ? (ok ? 'Reply ' + n.ms + ' ms' : (n.detail || 'No reply')) : '';
+      var agent = (d.last ? d.last : d.state) + (d.ms ? ' ' + d.ms + ' ms' : '') + (d.lastCheck ? ', ' + agoText(d.lastCheck) : '') + (d.detail && d.last !== 'Up' ? ', ' + d.detail : '');
+      return '<div class="item" onclick="livePing(\'' + esc(d.id) + '\')"><span class="dot" style="background:' + col + '"></span><div class="grow">' +
+        '<div class="title">' + esc(d.centre) + '  ' + esc(d.name) + '  <span class="muted">' + esc(d.host) + '</span></div>' +
+        (now ? '<div style="font-size:13px;color:' + col + '">Now ' + esc(now) + '</div>' : '') +
+        '<div class="muted">Agent ' + esc(agent) + '</div></div>' +
+        '<span class="muted">' + (window.ITM_LOCAL ? '&#9654;' : '&#8250;') + '</span></div>';
+    }).join('') + (l.length ? '' : '<div class="muted">No devices</div>') + '</div>';
+  $('view').innerHTML = h;
+}
+function livePing(id){
+  var d = (DASH.devices || []).find(function(x){ return x.id === id; });
+  if (!d) return;
+  if (!window.ITM_LOCAL) { openDevice(id); return; }
+  $('modal').innerHTML = '<div class="modal"><div class="sheet"><div class="row"><div class="grow"><div class="title">' + esc(d.centre + '  ' + d.name) + '</div><div class="muted">ping ' + esc(d.host) + ' from hgrowth, runs until you close</div></div><button class="btn sec sm" id="lpStop">Close</button></div>' +
+    '<pre id="lpOut" style="background:#0f1726;color:#d6f5dd;border-radius:8px;padding:10px;font-size:12px;height:55vh;overflow:auto;white-space:pre-wrap;margin-top:10px"></pre>' +
+    '<div class="muted" id="lpSum"></div></div></div>';
+  var out = $('lpOut'), ok = 0, bad = 0;
+  var es = new EventSource('/live/ping?token=' + encodeURIComponent(TOKEN) + '&id=' + encodeURIComponent(id));
+  es.onmessage = function(e){
+    var line = e.data;
+    if (/TTL=|ttl=/.test(line)) ok++; else if (/timed out|unreachable|failure|100% packet loss/i.test(line)) bad++;
+    out.textContent += line + '\n'; out.scrollTop = out.scrollHeight;
+    $('lpSum').textContent = ok + ' replies, ' + bad + ' failed';
+  };
+  es.onerror = function(){ es.close(); out.textContent += '\n[stopped]\n'; };
+  $('lpStop').onclick = function(){ es.close(); closeModal(); };
+}
+
 /* ---------- asset codes and A4 label sheets ---------- */
 var LBL_SIZES = {
   L24: { n: '24 per A4, 63.5 x 33.9 mm', cols: 3, rows: 8, w: 63.5, h: 33.9, top: 13.1, left: 7.2, cg: 2.5, rg: 0 },
