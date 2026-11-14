@@ -213,7 +213,7 @@ function devItem(x){
     x.state === 'Down' ? 'Down since ' + shortTs(x.lastChange) + (x.lastOnline ? ', last ok ' + shortTs(x.lastOnline) : '') :
     x.state === 'Idle' ? x.window : x.state === 'Stale' ? 'No result since ' + shortTs(x.lastCheck) : x.state;
   return '<div class="item" onclick="devDetail(\'' + x.id + '\')"><span class="dot" style="background:' + color(x.state) + '"></span>' +
-    '<div class="grow"><div class="title">' + esc(x.centre) + '  ' + esc(x.name) + '</div><div class="muted">' + esc(x.host) + '  ' + esc(sub) + '</div></div>' +
+    '<div class="grow"><div class="title">' + esc(x.centre) + '  ' + esc(x.name) + '</div><div class="muted">' + esc(x.host) + (x.mac ? '  ' + esc(x.mac) : '') + '  ' + esc(ipModeShort(x)) + '</div><div class="muted">' + esc(sub) + '</div></div>' +
     (x.uptime != null ? '<span class="muted">' + x.uptime + '%</span>' : '') + '</div>';
 }
 function v_centre(code){
@@ -256,11 +256,27 @@ function speedCard(c){
         '<div class="muted">' + esc(t.time) + (t.isp ? '  ' + esc(t.isp) : '') + (t.server ? '  server ' + esc(t.server) : '') + (t.pc ? '  from ' + esc(t.pc) : '') + '</div></div></div>';
     }).join('') + '</div>';
 }
+function ipModeShort(x){
+  if (x.ipMode === 'Static') return 'Static IP';
+  if (x.ipMode === 'DHCP') return 'DHCP' + (x.ipChanges ? ', IP changed ' + x.ipChanges + ' times' : '');
+  return '';
+}
+function ipModeLong(x){
+  if (x.ipMode === 'Static') return 'Static IP, marked by hand';
+  if (x.ipMode === 'DHCP') return 'DHCP' + (x.ipChanges ? ', IP changed ' + x.ipChanges + ' time' + (x.ipChanges > 1 ? 's' : '') + ', followed by MAC' : ', set by hand');
+  return x.mac ? 'No IP change seen yet, followed by MAC' : 'Not known yet';
+}
+function setIpMode(id, mode){
+  call('setIpMode', { id: id, mode: mode }).then(function(){ toast(mode === 'Static' ? 'Marked as static IP' : 'Set back to auto detect'); closeModal(); DASH = null; render(); }).catch(fail);
+}
 function devDetail(id){
   var x = (DASH.devices.filter(function(d){ return d.id === id; })[0]);
   if (!x) return;
   var h = '<div class="row"><div class="grow"><div class="big">' + esc(x.name) + '</div><div class="muted">' + esc(x.centre) + '  ' + esc(x.type) + '</div></div><span class="pill ' + esc(x.state) + '">' + esc(x.state) + '</span></div><br>' +
     '<div class="kv"><div>Host</div><div>' + esc(x.host) + (x.method === 'TCP' ? ' port ' + esc(x.port) : '') + '</div>' +
+    '<div>MAC</div><div>' + esc(x.mac || 'Not found yet') + (x.macSeen ? '<div class="muted">seen ' + esc(shortTs(x.macSeen)) + '</div>' : '') + '</div>' +
+    '<div>IP setting</div><div>' + esc(ipModeLong(x)) + '</div>' +
+    (x.lastIpChange ? '<div>Last IP change</div><div>' + esc(x.lastIpChange) + '</div>' : '') +
     '<div>Check</div><div>' + esc(x.method || 'ICMP') + ' every ' + x.interval + ' min</div>' +
     '<div>Window today</div><div>' + esc(x.window) + '</div>' +
     '<div>Last check</div><div>' + esc(x.lastCheck || 'none') + '</div>' +
@@ -271,7 +287,9 @@ function devDetail(id){
     '<div>Uptime today</div><div>' + (x.uptime != null ? x.uptime + '%' : 'no data') + '</div>' +
     '<div>Detail</div><div>' + esc(x.detail) + '</div></div><br>' +
     '<div class="row">' + (canEdit(x.centre) ? '<button class="btn" onclick="closeModal();openDevice(\'' + x.id + '\')">Edit</button>' : '') +
-    '<button class="btn sec" onclick="closeModal();go(\'events\',\'' + esc(x.centre) + '\',true)">History</button><button class="btn sec" onclick="closeModal();assetView(\'' + x.id + '\')">Support and QR</button><div class="grow"></div><button class="btn sec" onclick="closeModal()">Close</button></div>';
+    (canEdit(x.centre) ? '<button class="btn sec" onclick="setIpMode(\'' + x.id + '\',\'' + (x.ipMode === 'Static' ? '' : 'Static') + '\')">' + (x.ipMode === 'Static' ? 'Unmark static IP' : 'Mark as static IP') + '</button>' : '') +
+    '<button class="btn sec" onclick="showHistory(\'' + x.id + '\',\'' + esc(String(x.name).replace(/[\'"\\]/g, '')) + '\')">IP and change history</button>' +
+    '<button class="btn sec" onclick="closeModal();go(\'events\',\'' + esc(x.centre) + '\',true)">Status history</button><button class="btn sec" onclick="closeModal();assetView(\'' + x.id + '\')">Support and QR</button><div class="grow"></div><button class="btn sec" onclick="closeModal()">Close</button></div>';
   modal(h);
 }
 
@@ -371,6 +389,8 @@ function editDevice(d){
     { k: 'Type', label: 'Device type', type: 'select', opts: LK.types.map(function(t){ return t.Type; }), half: true },
     { k: 'Name', label: 'Name', ph: 'Main Server' },
     { k: 'Host', label: 'IP address or host name', ph: '192.168.1.200' },
+    { k: 'MAC', label: 'MAC address', ph: 'Found automatically from the centre manager PC', half: true },
+    { k: 'IPMode', label: 'IP setting', type: 'select', opts: [{v:'',l:'Auto detect'},{v:'Static',l:'Static IP set'},{v:'DHCP',l:'DHCP'}], half: true },
     { k: 'Method', label: 'Check method', type: 'select', opts: [{v:'ICMP',l:'Ping'},{v:'TCP',l:'TCP port'}], half: true },
     { k: 'Port', label: 'Port for TCP', type: 'number', half: true },
     { k: 'IntervalMin', label: 'Check every, minutes', type: 'number', half: true },
